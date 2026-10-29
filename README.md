@@ -15,16 +15,48 @@ and gives visitors and admins only what they need.
 agent-ui ──/api──► agent-api ──Bearer key──► Hermes API server (127.0.0.1:8642)
 ```
 
-## Quick start (mock agent)
+## Try it locally (5 minutes, no Hermes needed)
 
+You need Python 3.11+ and Node 18+ (`brew install python@3.12 node` on a Mac). Put both projects side by side,
+e.g. `~/dev/agent-api` and `~/dev/agent-ui`.
+
+**1. Start the backend** (Terminal tab 1). It runs a built-in mock agent:
 ```bash
+cd ~/dev/agent-api
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env            # HERMES_MODE=mock, ADMIN_PASSWORD=admin
+cp .env.example .env          # HERMES_MODE=mock, admin password "admin"
 uvicorn app.main:app --reload --port 8000
 ```
-Then run agent-ui (`npm run dev`) and open http://localhost:5173 (admin: `/admin`, user `admin` / `admin`).
-API docs: http://localhost:8000/docs
+Check: http://localhost:8000/api/health shows `"mode":"mock"`.
+
+**2. Start the UI** (Terminal tab 2):
+```bash
+cd ~/dev/agent-ui
+npm install
+cp .env.example .env
+npm run dev
+```
+
+**3. Open http://localhost:5173 and try:**
+
+| Try | What should happen |
+|---|---|
+| Click **What are your rates?** | The reply streams in: "Plans start at £49…" |
+| Click the save icon on a reply | It appears under **Saved replies** |
+| Type "delete old logs" | An **Approve / Deny** card appears |
+| **🔐 Save my work** → any email | Dev mode shows the code on screen → enter it |
+| Press ▶ on the avatar | Replies are read aloud |
+| **Admin →**, log in as `admin` / `admin` | Dashboard, then Settings, Avatar and Hermes pages |
+| Change the assistant name in **Settings** | The chat placeholder becomes "Ask <name> anything…" |
+
+**Automated UI tests** (no backend needed): `npx playwright install chromium` (first time only), then
+`npm run test:e2e` in agent-ui.
+
+**Use the real agent:** set `HERMES_MODE=hermes` and `HERMES_API_KEY` in `agent-api/.env`, then restart the backend.
+See [docs/HERMES_MAC_MINI_SETUP.md](docs/HERMES_MAC_MINI_SETUP.md), section 10.
+
+API docs (Swagger): http://localhost:8000/docs
 
 ## Connect Hermes
 
