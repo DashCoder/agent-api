@@ -5,6 +5,8 @@
 <dict>
 	<key>EnvironmentVariables</key>
 	<dict>
+		<key>DOCKER_HOST</key>
+		<string>unix:///Users/aiagents/.colima/default/docker.sock</string>
 		<key>HOME</key>
 		<string>/Users/aiagents</string>
 		<key>PATH</key>
