@@ -287,8 +287,11 @@ exit                   # back to inagentic
    manager and agree with the client who else holds it.
    <strong class="why">Why</strong> the Mac will hold client data, API keys and agent memory. Without disk encryption, anyone who takes the
    Mac can read all of it.</li>
-<li><strong>Name the Mac:</strong> System Settings → General → Sharing → Local hostname, e.g. <code>acme-agents</code>.
-   <strong class="why">Why</strong> the name becomes its Tailscale address (<code>acme-agents.&lt;tailnet&gt;.ts.net</code>).</li>
+<li><strong>Name the Mac:</strong> System Settings → General → Sharing → Local hostname: <code>ina-mini-01</code> (InAgentic Mac mini
+   no. 1; the next machine is <code>ina-mini-02</code>). Record which number belongs to which client in your password manager.
+   <strong class="why">Why</strong> the name becomes its Tailscale address (<code>ina-mini-01.&lt;tailnet&gt;.ts.net</code>). A numbered name works before you
+   know the client, stays unique across machines, and keeps the client's name out of your tailnet, logs and
+   certificates. To rename later, see <em>Renaming the Mac</em> in section 17.</li>
 <li><strong>Keep it awake and make it restart after a power cut:</strong>
    <code>bash
    sudo pmset -a sleep 0 disksleep 0 displaysleep 10 autorestart 1 womp 1
@@ -301,7 +304,7 @@ exit                   # back to inagentic
    <em>Allow access for: Only these users</em> → InAgentic Admin. Then:
    <code>bash
    # on YOUR laptop:
-   ssh-copy-id inagentic@acme-agents.local
+   ssh-copy-id inagentic@ina-mini-01.local
    # on the Mac:
    sudo tee /etc/ssh/sshd_config.d/100-keys-only.conf &gt;/dev/null &lt;&lt;'EOF'
    PasswordAuthentication no
@@ -340,7 +343,7 @@ installed instead of trying to install them without permission.</p>
 <p class="runas runas--admin">Run as admin</p>
 <pre><code class="language-bash">brew install tailscale
 sudo brew services start tailscale          # runs tailscaled as root at every boot
-sudo tailscale up --hostname acme-agents     # opens a login link; approve the Mac in your tailnet
+sudo tailscale up --hostname ina-mini-01     # opens a login link; approve the Mac in your tailnet
 tailscale status
 </code></pre>
 <p>In the Tailscale admin console: enable <strong>MagicDNS</strong> and <strong>HTTPS certificates</strong>, and use access controls (ACLs) so
@@ -547,10 +550,10 @@ python3 -c &quot;import secrets;print(secrets.token_urlsafe(48))&quot;    # valu
 <pre><code class="language-ini">HERMES_MODE=hermes
 HERMES_API_URL=http://127.0.0.1:8642
 HERMES_API_KEY=&lt;the key from section 9&gt;
-HERMES_DASHBOARD_URL=https://acme-agents.&lt;tailnet&gt;.ts.net:9119   # after section 14
+HERMES_DASHBOARD_URL=https://ina-mini-01.&lt;tailnet&gt;.ts.net:9119   # after section 14
 SECRET_KEY=&lt;random value&gt;
 COOKIE_SECURE=true
-CORS_ORIGINS=https://acme-agents.&lt;tailnet&gt;.ts.net
+CORS_ORIGINS=https://ina-mini-01.&lt;tailnet&gt;.ts.net
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD_HASH=&lt;from hash-password&gt;
 ADMIN_PASSWORD=
@@ -639,9 +642,9 @@ sudo tailscale serve --bg --https=9119 http://127.0.0.1:9119
 tailscale serve status
 </code></pre>
 <ul>
-<li>Chat: <code>https://acme-agents.&lt;tailnet&gt;.ts.net/</code></li>
-<li>Admin console: <code>https://acme-agents.&lt;tailnet&gt;.ts.net/admin</code></li>
-<li>Hermes dashboard: <code>https://acme-agents.&lt;tailnet&gt;.ts.net:9119</code>. Put this in agent-api's <code>HERMES_DASHBOARD_URL</code>, then
+<li>Chat: <code>https://ina-mini-01.&lt;tailnet&gt;.ts.net/</code></li>
+<li>Admin console: <code>https://ina-mini-01.&lt;tailnet&gt;.ts.net/admin</code></li>
+<li>Hermes dashboard: <code>https://ina-mini-01.&lt;tailnet&gt;.ts.net:9119</code>. Put this in agent-api's <code>HERMES_DASHBOARD_URL</code>, then
   restart agent-api. <strong>Admin → Hermes</strong> then shows an <em>Open full Hermes dashboard</em> button.</li>
 </ul>
 <p><strong class="why">Why Tailscale Serve</strong> it adds HTTPS and only lets devices in your tailnet connect, which is the protection the
@@ -702,8 +705,17 @@ sudo tar -czf /Volumes/Backup/agents-$(date +%F).tgz -C /Users/aiagents \
      .hermes apps/agent-api/data apps/agent-api/.env agent-workspace
 </code></pre>
 <p>The archive contains API keys, so keep the backup drive encrypted.</p>
+<p><strong>Renaming the Mac</strong> (optional, e.g. to the client's name). As admin:</p>
+<pre><code class="language-bash">sudo scutil --set ComputerName &quot;acme-agents&quot;
+sudo scutil --set LocalHostName &quot;acme-agents&quot;
+sudo scutil --set HostName &quot;acme-agents&quot;
+sudo tailscale set --hostname acme-agents          # or rename it in the Tailscale admin console
+</code></pre>
+<p>Then update <code>HERMES_DASHBOARD_URL</code> and <code>CORS_ORIGINS</code> in <code>/Users/aiagents/apps/agent-api/.env</code>, restart agent-api
+(<code>sudo launchctl kickstart -k system/ai.agents.agent-api</code>), and re-run the two <code>tailscale serve</code> commands if the HTTPS
+address doesn't follow. Account names and services don't change.</p>
 <p><strong>Monitoring.</strong> Point an uptime monitor (Uptime Kuma, Healthchecks.io, Better Stack) at
-<code>https://acme-agents.&lt;tailnet&gt;.ts.net/api/health</code> and have it alert you by email or Telegram.</p>
+<code>https://ina-mini-01.&lt;tailnet&gt;.ts.net/api/health</code> and have it alert you by email or Telegram.</p>
 <p><strong>Security checklist</strong></p>
 <ul>
 <li class="task"><input type="checkbox" id="chk-9" data-id="9"><span><label for="chk-9"><code>aiagents</code> is a standard user and is not allowed to SSH in</label></span></li>
