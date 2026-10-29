@@ -1,0 +1,828 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mac Mini Agent Server</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Runbook layout: sticky contents rail on the left, a 72ch reading column on the right. */
+:root {
+  --bg: #f6f7f5; --surface: #ffffff; --ink: #1d2320; --muted: #5d6a63; --line: #dde3df;
+  --accent: #1f6f5c; --accent-soft: #e3f1ec;
+  --admin: #9a5b00; --admin-soft: #fdf1dc; --agents: #1f5f8b; --agents-soft: #e2eef8;
+  --code-bg: #18201c; --code-ink: #e7efe9; --inline-code: #eef2ef;
+  --font-display: 'Bricolage Grotesque', 'Avenir Next', system-ui, sans-serif;
+  --font-body: 'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121614; --surface: #1a201d; --ink: #e4ebe7; --muted: #9db0a6; --line: #2c3631;
+  --accent: #5cc4a6; --accent-soft: #1d3029;
+  --admin: #f2b35a; --admin-soft: #33270f; --agents: #7cb8e6; --agents-soft: #16283a;
+  --code-bg: #0c100e; --code-ink: #dbe6df; --inline-code: #232b27; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #121614; --surface: #1a201d; --ink: #e4ebe7; --muted: #9db0a6; --line: #2c3631;
+  --accent: #5cc4a6; --accent-soft: #1d3029;
+  --admin: #f2b35a; --admin-soft: #33270f; --agents: #7cb8e6; --agents-soft: #16283a;
+  --code-bg: #0c100e; --code-ink: #dbe6df; --inline-code: #232b27; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 17px; line-height: 1.65; }
+.shell { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 48px; max-width: 1180px; margin: 0 auto;
+  padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start;
+  max-height: calc(100vh - 48px); overflow-y: auto; font-size: 14px; }
+.toc__title { font-family: var(--font-display); font-weight: 700; font-size: 13px; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--muted); margin: 0 0 10px; }
+.toc ul { list-style: none; margin: 0; padding: 0; }
+.toc li ul { padding-left: 14px; }
+.toc a { display: block; padding: 4px 8px; border-radius: 6px; color: var(--muted); text-decoration: none; line-height: 1.35; }
+.toc a:hover { color: var(--ink); background: var(--accent-soft); }
+.toc a.is-active { color: var(--accent); font-weight: 700; }
+main { min-width: 0; max-width: 76ch; }
+
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.2; text-wrap: balance; scroll-margin-top: 20px; }
+h1 { font-size: clamp(30px, 5vw, 44px); letter-spacing: -0.01em; margin: 0 0 14px; }
+h2 { font-size: 26px; margin: 56px 0 14px; padding-top: 18px; border-top: 1px solid var(--line); }
+h3 { font-size: 20px; margin: 34px 0 10px; }
+p, ul, ol { margin: 0 0 14px; }
+li { margin: 4px 0; }
+li > ul, li > ol { margin: 6px 0; }
+a { color: var(--accent); }
+main hr { display: none; }  /* h2 already draws the section rule */
+strong { font-weight: 700; }
+code { overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 0.86em; background: var(--inline-code); padding: 1px 5px; border-radius: 4px; }
+.codeblock { position: relative; margin: 10px 0 18px; }
+pre { margin: 0; background: var(--code-bg); color: var(--code-ink); border-radius: 10px; padding: 16px 18px;
+  overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+pre code { background: none; padding: 0; font-size: inherit; color: inherit; overflow-wrap: normal; }
+.codeblock pre { padding-top: 38px; }
+.copy { position: absolute; top: 8px; right: 8px; font: 600 12px var(--font-body); color: var(--code-ink);
+  background: rgb(255 255 255 / 10%); border: 1px solid rgb(255 255 255 / 18%); border-radius: 6px; padding: 4px 9px;
+  cursor: pointer; }
+.copy:hover { background: rgb(255 255 255 / 18%); }
+.table-wrap { overflow-x: auto; margin: 10px 0 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--font-display); font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+
+.lede { font-size: 19px; color: var(--muted); }
+.runas { display: inline-flex; align-items: center; gap: 10px; margin: 6px 12px 14px 0; padding: 6px 14px 6px 10px;
+  border-radius: 999px; font-size: 14px; font-weight: 700; border: 1px solid currentColor; }
+.runas::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+.runas small { font-weight: 400; color: var(--ink); opacity: 0.8; font-size: 13px; }
+.runas--admin { color: var(--admin); background: var(--admin-soft); }
+.runas--agents { color: var(--agents); background: var(--agents-soft); }
+strong.why { font-family: var(--font-display); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 4px; margin-right: 4px; }
+li.task { list-style: none; margin-left: -22px; display: flex; gap: 10px; align-items: baseline; }
+li.task input { width: 17px; height: 17px; accent-color: var(--accent); transform: translateY(2px); flex: none; }
+li.task.is-done span { color: var(--muted); text-decoration: line-through; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (max-width: 1000px) {
+  .shell { grid-template-columns: minmax(0, 1fr); gap: 0; padding-block: 24px 60px; }
+  .toc { position: static; max-height: none; border: 1px solid var(--line); background: var(--surface);
+    border-radius: 12px; padding: 14px; margin-bottom: 28px; }
+  body { font-size: 16px; }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+</head>
+<body>
+<div class="shell"><nav class="toc" aria-label="Contents"><p class="toc__title">Contents</p>
+<ul>
+<li><a href="#0-how-to-read-this-guide-two-accounts">0. How to read this guide: two accounts</a><ul>
+<li><a href="#what-you-end-up-with">What you end up with</a></li>
+</ul>
+</li>
+<li><a href="#1-before-you-start">1. Before you start</a></li>
+<li><a href="#2-macos-first-setup">2. macOS first setup</a></li>
+<li><a href="#3-create-the-agents-account">3. Create the agents account</a></li>
+<li><a href="#4-install-shared-tools-with-homebrew">4. Install shared tools with Homebrew</a></li>
+<li><a href="#5-tailscale-private-remote-access">5. Tailscale (private remote access)</a></li>
+<li><a href="#6-docker-sandbox-for-agent-commands">6. Docker (sandbox for agent commands)</a><ul>
+<li><a href="#61-why-docker">6.1 Why Docker</a></li>
+<li><a href="#62-choose-the-docker-engine">6.2 Choose the Docker engine</a></li>
+<li><a href="#63-install-colima-and-the-docker-command-line">6.3 Install Colima and the Docker command line</a></li>
+<li><a href="#64-create-the-vm-and-test-it">6.4 Create the VM and test it</a></li>
+<li><a href="#65-start-colima-at-boot">6.5 Start Colima at boot</a></li>
+<li><a href="#66-sizing">6.6 Sizing</a></li>
+</ul>
+</li>
+<li><a href="#7-install-hermes-agent">7. Install Hermes Agent</a></li>
+<li><a href="#8-run-agent-commands-inside-docker">8. Run agent commands inside Docker</a></li>
+<li><a href="#9-enable-the-hermes-api-server">9. Enable the Hermes API server</a></li>
+<li><a href="#10-install-agent-api">10. Install agent-api</a></li>
+<li><a href="#11-build-agent-ui">11. Build agent-ui</a></li>
+<li><a href="#12-check-the-web-server-config">12. Check the web server config</a></li>
+<li><a href="#13-run-everything-as-services">13. Run everything as services</a></li>
+<li><a href="#14-remote-access">14. Remote access</a></li>
+<li><a href="#15-reboots-and-filevault">15. Reboots and FileVault</a></li>
+<li><a href="#16-verify-before-handover">16. Verify before handover</a></li>
+<li><a href="#17-operations">17. Operations</a></li>
+<li><a href="#18-troubleshooting">18. Troubleshooting</a></li>
+<li><a href="#appendix-commands-by-account">Appendix: commands by account</a></li>
+</ul>
+</nav>
+<main><h1 id="hermes-agent-on-a-mac-mini-setup-guide">Hermes Agent on a Mac mini — setup guide</h1>
+<p class="lede">This guide turns a Mac mini (M6, macOS 26 Tahoe) into an always-on AI agent server for a client. It runs
+<strong>Hermes Agent</strong> with commands sandboxed in <strong>Docker</strong>, and connects it to <strong>agent-ui</strong> (chat + admin console)
+through <strong>agent-api</strong> (Python backend).</p>
+<p><strong>Time:</strong> about 2½ hours. <strong>You need:</strong> the Mac on wired Ethernet, an SSH-capable laptop, and the accounts listed
+in section 1.</p>
+<p>Hermes changes quickly. Where a command or flag might differ in your version, check it with
+<code>hermes &lt;command&gt; --help</code>. The same applies to <code>tailscale</code> and <code>colima</code>.</p>
+<hr />
+<h2 id="0-how-to-read-this-guide-two-accounts">0. How to read this guide: two accounts</h2>
+<p>Every step says which account runs it:</p>
+<p class="runas runas--admin">Run as admin <small>the <code>inagentic</code> administrator account</small></p>
+<p class="runas runas--agents">Run as aiagents <small>the <code>aiagents</code> standard (non-admin) account that runs the agents</small></p>
+<p><strong>Why two accounts?</strong> The agent can run commands. If it's ever tricked into running a harmful one (by a malicious
+web page, email or document), the damage is limited to what its account is allowed to do. A <strong>standard</strong> account
+can't install system software, change system settings, read other users' files or use <code>sudo</code>. So:</p>
+<ul>
+<li><strong>admin does system-wide things:</strong> installing software with Homebrew, network and security settings, FileVault,
+  Tailscale, and registering services with launchd. These need <code>sudo</code>.</li>
+<li><strong>aiagents owns the agent and its data:</strong> Hermes, its config and API keys, the Docker VM, agent-api, agent-ui and
+  their databases. These live in <code>/Users/aiagents</code>, where nothing else needs to reach them.</li>
+</ul>
+<p><strong>Switching accounts.</strong> Log in over SSH as admin only (aiagents is never allowed to log in remotely). To work as
+aiagents, start a login shell for it, and type <code>exit</code> to return:</p>
+<pre><code class="language-bash">sudo -iu aiagents      # now you are aiagents, in /Users/aiagents
+whoami                 # -&gt; aiagents
+exit                   # back to inagentic
+</code></pre>
+<p>If a step asks for <code>sudo</code> while you're aiagents, you're in the wrong account: <code>exit</code> first.</p>
+<h3 id="what-you-end-up-with">What you end up with</h3>
+<pre><code>                 Tailscale (private)  ·  optional public chat
+                               │
+              ┌────────────────┴─────────────────┐
+              │  Caddy            127.0.0.1:8080 │  serves agent-ui + proxies /api
+              └────────┬─────────────────────────┘
+                       │
+              ┌────────┴─────────────────────────┐
+              │  agent-api        127.0.0.1:8000 │  logins, chat sessions, admin API
+              └────────┬─────────────────────────┘
+                       │  Bearer API_SERVER_KEY
+              ┌────────┴─────────────────────────┐
+              │  Hermes gateway   127.0.0.1:8642 │  agent, skills, memory, Telegram…
+              │  Hermes dashboard 127.0.0.1:9119 │  admin only
+              └────────┬─────────────────────────┘
+                       │  docker exec
+              ┌────────┴─────────────────────────┐
+              │  Colima VM → Hermes container    │  where agent commands actually run
+              └──────────────────────────────────┘
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Installed by</th>
+<th>Runs as</th>
+<th>Starts via</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Homebrew, git, Python, Node, Caddy, Colima, Docker CLI</td>
+<td>admin</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Tailscale</td>
+<td>admin</td>
+<td>root</td>
+<td>Homebrew service (boot)</td>
+</tr>
+<tr>
+<td>Colima VM (Docker engine)</td>
+<td>aiagents</td>
+<td>aiagents</td>
+<td>LaunchDaemon <code>ai.agents.colima</code></td>
+</tr>
+<tr>
+<td>Hermes gateway + dashboard</td>
+<td>aiagents</td>
+<td>aiagents</td>
+<td>LaunchDaemons <code>ai.agents.hermes-*</code></td>
+</tr>
+<tr>
+<td>agent-api</td>
+<td>aiagents</td>
+<td>aiagents</td>
+<td>LaunchDaemon <code>ai.agents.agent-api</code></td>
+</tr>
+<tr>
+<td>agent-ui (static files) + Caddy</td>
+<td>aiagents (build)</td>
+<td>aiagents</td>
+<td>LaunchDaemon <code>ai.agents.caddy</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Everything listens on <strong>127.0.0.1 only</strong>. Nothing is reachable from the network except through Tailscale.</p>
+<hr />
+<h2 id="1-before-you-start">1. Before you start</h2>
+<p><strong>Hardware</strong></p>
+<ul>
+<li>Mac mini M6. 32 GB of memory if you'll run local models; 16 GB is enough for cloud models plus Docker.</li>
+<li><strong>Wired Ethernet.</strong> Remote FileVault unlock after a reboot (section 15) needs it.</li>
+<li>A small <strong>UPS</strong> (£60–£100). Most unplanned reboots are short power cuts, and each one locks the disk until someone
+  unlocks it.</li>
+</ul>
+<p><strong>Accounts and keys.</strong> Put each in your password manager as you create it.</p>
+<ul>
+<li>A model provider API key (e.g. Anthropic), in the <strong>client's</strong> account or yours billed onward, with a <strong>monthly
+  spending limit</strong>. The limit caps the cost of a runaway agent loop.</li>
+<li>A Tailscale account (the free plan is fine).</li>
+<li>Optional: a Telegram bot token from @BotFather.</li>
+</ul>
+<p><strong>Mac accounts you will create</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Full name</th>
+<th>Account name</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>InAgentic Admin</td>
+<td><code>inagentic</code></td>
+<td>Administrator</td>
+</tr>
+<tr>
+<td>InAgentic AI Agents</td>
+<td><code>aiagents</code></td>
+<td>Standard</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="2-macos-first-setup">2. macOS first setup</h2>
+<p class="runas runas--admin">Run as admin</p>
+<ol>
+<li><strong>Create the admin account in Setup Assistant</strong> as <em>InAgentic Admin / <code>inagentic</code></em>. Skip the Apple ID.
+   <strong class="why">Why</strong> a personal Apple ID would sync your data onto a client's machine. If iMessage is needed later, use an
+   Apple ID owned by the client.</li>
+<li><strong>Install updates:</strong> System Settings → General → Software Update. Turn on <em>Security Responses and system files</em>.
+   <strong class="why">Why</strong> security fixes then install without waiting for you.</li>
+<li><strong>Turn on FileVault:</strong> System Settings → Privacy &amp; Security → FileVault. Save the recovery key in your password
+   manager and agree with the client who else holds it.
+   <strong class="why">Why</strong> the Mac will hold client data, API keys and agent memory. Without disk encryption, anyone who takes the
+   Mac can read all of it.</li>
+<li><strong>Name the Mac:</strong> System Settings → General → Sharing → Local hostname, e.g. <code>acme-agents</code>.
+   <strong class="why">Why</strong> the name becomes its Tailscale address (<code>acme-agents.&lt;tailnet&gt;.ts.net</code>).</li>
+<li><strong>Keep it awake and make it restart after a power cut:</strong>
+   <code>bash
+   sudo pmset -a sleep 0 disksleep 0 displaysleep 10 autorestart 1 womp 1
+   pmset -g | egrep 'sleep|autorestart'</code>
+   <strong class="why">Why</strong> a sleeping Mac doesn't answer calls or messages. <code>autorestart 1</code> powers it back on when the electricity
+   returns.</li>
+<li><strong>Turn on the firewall:</strong> System Settings → Network → Firewall.
+   <strong class="why">Why</strong> a second safety net in case a service is ever accidentally started on a public address.</li>
+<li><strong>Enable SSH for the admin account only, key-based:</strong> System Settings → General → Sharing → Remote Login → On →
+   <em>Allow access for: Only these users</em> → InAgentic Admin. Then:
+   <code>bash
+   # on YOUR laptop:
+   ssh-copy-id inagentic@acme-agents.local
+   # on the Mac:
+   sudo tee /etc/ssh/sshd_config.d/100-keys-only.conf &gt;/dev/null &lt;&lt;'EOF'
+   PasswordAuthentication no
+   KbdInteractiveAuthentication no
+   PermitRootLogin no
+   EOF
+   sudo launchctl kickstart -k system/com.openssh.sshd</code>
+   Open a <strong>second</strong> SSH session to check it works before closing the first.
+   <strong class="why">Why</strong> keys can't be guessed, unlike passwords. Limiting SSH to the admin account means the agent account can
+   never be used to log in.</li>
+</ol>
+<h2 id="3-create-the-agents-account">3. Create the agents account</h2>
+<p class="runas runas--admin">Run as admin</p>
+<pre><code class="language-bash">sudo sysadminctl -addUser aiagents -fullName &quot;InAgentic AI Agents&quot; -password -   # asks for a password
+id aiagents
+</code></pre>
+<p>Save the password in your password manager. You'll rarely type it, because you switch with <code>sudo -iu aiagents</code>.</p>
+<p><strong class="why">Why</strong> this is the sandbox boundary described in section 0. Because it isn't an admin, it isn't added to the SSH
+allow-list either.</p>
+<h2 id="4-install-shared-tools-with-homebrew">4. Install shared tools with Homebrew</h2>
+<p class="runas runas--admin">Run as admin</p>
+<pre><code class="language-bash">/bin/bash -c &quot;$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)&quot;
+echo 'eval &quot;$(/opt/homebrew/bin/brew shellenv)&quot;' &gt;&gt; ~/.zprofile
+eval &quot;$(/opt/homebrew/bin/brew shellenv)&quot;
+
+brew install git python@3.12 node uv ripgrep ffmpeg caddy
+</code></pre>
+<p>Make Homebrew's programs available to aiagents too:</p>
+<pre><code class="language-bash">sudo -u aiagents sh -c 'echo &quot;eval \&quot;\$(/opt/homebrew/bin/brew shellenv)\&quot;&quot; &gt;&gt; /Users/aiagents/.zprofile'
+</code></pre>
+<p><strong class="why">Why admin installs everything</strong> Homebrew writes to <code>/opt/homebrew</code>, which only admin can change. aiagents can
+run every program there but can't install or replace them. That stops the agent from swapping a tool for a
+malicious one. It also means the Hermes installer (section 7) finds <code>git</code>, <code>uv</code>, <code>ripgrep</code> and <code>ffmpeg</code> already
+installed instead of trying to install them without permission.</p>
+<h2 id="5-tailscale-private-remote-access">5. Tailscale (private remote access)</h2>
+<p class="runas runas--admin">Run as admin</p>
+<pre><code class="language-bash">brew install tailscale
+sudo brew services start tailscale          # runs tailscaled as root at every boot
+sudo tailscale up --hostname acme-agents     # opens a login link; approve the Mac in your tailnet
+tailscale status
+</code></pre>
+<p>In the Tailscale admin console: enable <strong>MagicDNS</strong> and <strong>HTTPS certificates</strong>, and use access controls (ACLs) so
+only your devices and the client's staff can reach this Mac.</p>
+<p><strong class="why">Why</strong> Tailscale gives you an encrypted private network, so you never open router ports. The command-line daemon
+(rather than the App Store app) starts at boot without anyone logging in, which a headless server needs.</p>
+<hr />
+<h2 id="6-docker-sandbox-for-agent-commands">6. Docker (sandbox for agent commands)</h2>
+<h3 id="61-why-docker">6.1 Why Docker</h3>
+<p>Hermes can run terminal commands, edit files and execute code. With Docker, every one of those runs inside a
+<strong>throw-away Linux container</strong> instead of directly on the Mac:</p>
+<ul>
+<li>the container can't see the Mac's files, keys or other accounts unless you share them on purpose;</li>
+<li>Hermes starts its container hardened: read-only root filesystem, all Linux privileges dropped, no privilege
+  escalation, and a 256-process limit;</li>
+<li>a bad command damages a disposable container, not the client's machine.</li>
+</ul>
+<p>On macOS, Docker always runs inside a small Linux virtual machine. You choose the tool that manages that VM.</p>
+<h3 id="62-choose-the-docker-engine">6.2 Choose the Docker engine</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Cost for business use</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Colima</strong> (used here)</td>
+<td>Free, open source</td>
+<td>Command-line only; runs under a normal user; good for headless servers</td>
+</tr>
+<tr>
+<td>Docker Desktop</td>
+<td>Free only for businesses with under 250 staff <strong>and</strong> under $10M revenue; paid otherwise</td>
+<td>GUI app; expects someone logged in</td>
+</tr>
+<tr>
+<td>OrbStack</td>
+<td>Paid licence for commercial use</td>
+<td>Fast, polished; GUI app</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="63-install-colima-and-the-docker-command-line">6.3 Install Colima and the Docker command line</h3>
+<p class="runas runas--admin">Run as admin</p>
+<pre><code class="language-bash">brew install colima docker docker-compose
+mkdir -p /Users/aiagents/.docker/cli-plugins
+sudo ln -sfn /opt/homebrew/opt/docker-compose/bin/docker-compose /Users/aiagents/.docker/cli-plugins/docker-compose
+sudo chown -R aiagents:staff /Users/aiagents/.docker
+</code></pre>
+<p><strong class="why">Why admin</strong> installing software is a system change (section 4). The VM itself will belong to aiagents.</p>
+<h3 id="64-create-the-vm-and-test-it">6.4 Create the VM and test it</h3>
+<p class="runas runas--agents">Run as aiagents</p>
+<pre><code class="language-bash">sudo -iu aiagents
+mkdir -p ~/agent-workspace
+colima start --vm-type vz --cpu 4 --memory 8 --disk 60 \
+             --mount ~/agent-workspace:w
+docker context ls                 # &quot;colima&quot; should be marked as current (*)
+docker run --rm hello-world       # prints &quot;Hello from Docker!&quot;
+docker run --rm alpine uname -m   # aarch64 — containers run as native ARM Linux
+</code></pre>
+<p>What the flags do, and why:</p>
+<ul>
+<li><code>--vm-type vz</code> uses Apple's own virtualisation framework: fastest and most efficient on Apple Silicon.</li>
+<li><code>--cpu 4 --memory 8 --disk 60</code> gives the VM 4 cores, 8 GB and 60 GB. The VM only uses memory when containers need it,
+  but this is its ceiling. See 6.6 for other Mac sizes.</li>
+<li><code>--mount ~/agent-workspace:w</code> shares <strong>only</strong> this one folder with the VM. By default Colima shares your whole
+  home folder, which here would include <code>~/.hermes/.env</code> and its API keys. Limiting it means even a container that
+  escapes its sandbox can't reach those secrets.</li>
+<li>If you need an Intel-only (x86) image, add <code>--vz-rosetta</code> to run it through Rosetta.</li>
+</ul>
+<p><strong class="why">Why aiagents</strong> the VM, its socket and its containers then belong to the agent account. The admin account isn't
+involved in running agent commands at all.</p>
+<h3 id="65-start-colima-at-boot">6.5 Start Colima at boot</h3>
+<p class="runas runas--admin">Run as admin</p>
+<p>Do this in section 13 together with the other services. agent-api ships
+<code>deploy/launchd/ai.agents.colima.plist</code>, which runs <code>colima start --foreground</code> as aiagents at every boot and restarts it if it stops.</p>
+<p>Test it with a full reboot (section 15). If the VM doesn't start from the LaunchDaemon on your macOS version, the
+error will be in <code>/Users/aiagents/Library/Logs/colima.log</code>. As a fallback, switch the VM type to QEMU, which doesn't need a logged-in
+session: as admin <code>brew install qemu</code>, then as aiagents <code>colima delete &amp;&amp; colima start --vm-type qemu …</code>.</p>
+<h3 id="66-sizing">6.6 Sizing</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Mac memory</th>
+<th>Colima <code>--memory</code></th>
+<th>Hermes <code>container_memory</code></th>
+<th>Leaves room for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>16 GB</td>
+<td>4 GB</td>
+<td>3072 MB</td>
+<td>macOS, Hermes and apps (cloud models only)</td>
+</tr>
+<tr>
+<td>32 GB</td>
+<td>8 GB</td>
+<td>5120 MB (Hermes default)</td>
+<td>plus an 8B local model and the avatar/voice stack</td>
+</tr>
+<tr>
+<td>64 GB</td>
+<td>12 GB</td>
+<td>8192 MB</td>
+<td>plus larger local models</td>
+</tr>
+</tbody>
+</table></div>
+<p>The container limit must be lower than the VM's memory. To resize later, as aiagents: <code>colima stop &amp;&amp; colima start --memory 12</code>.</p>
+<hr />
+<h2 id="7-install-hermes-agent">7. Install Hermes Agent</h2>
+<p class="runas runas--agents">Run as aiagents</p>
+<pre><code class="language-bash">sudo -iu aiagents
+curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+exec zsh -l                 # reload the shell; hermes lives in ~/.local/bin
+hermes version
+hermes doctor
+</code></pre>
+<p>If the installer reports it couldn't install something, <code>exit</code>, install it as admin with <code>brew install &lt;name&gt;</code>,
+then run the installer again as aiagents.</p>
+<p><strong class="why">Why aiagents</strong> Hermes stores everything in <code>~/.hermes</code>: config, API keys, memory, skills and sessions. Installed in
+the agent account, all of that is private to it.</p>
+<p>Configure the basics:</p>
+<pre><code class="language-bash">hermes model        # pick the provider (e.g. Anthropic) and paste the API key
+hermes setup        # full wizard: messaging channels such as Telegram (optional)
+hermes chat -q &quot;Hello! What tools do you have?&quot;
+</code></pre>
+<p><strong>Multiple agents.</strong> Create one <strong>profile</strong> per agent role, e.g. <code>hermes profile create reception</code>. Each has its own
+memory, skills, tools, port and key. Start with one profile and add more once the first works.</p>
+<h2 id="8-run-agent-commands-inside-docker">8. Run agent commands inside Docker</h2>
+<p class="runas runas--agents">Run as aiagents</p>
+<pre><code class="language-bash">hermes config set terminal.backend docker
+hermes config set terminal.docker_image python:3.11-slim
+hermes config set terminal.container_memory 5120      # MB; see the sizing table in 6.6
+hermes config set terminal.container_cpu 2
+hermes config set terminal.container_persistent true  # keep /workspace between restarts
+hermes doctor
+</code></pre>
+<p>The same settings in <code>~/.hermes/config.yaml</code>:</p>
+<pre><code class="language-yaml">terminal:
+  backend: docker
+  docker_image: python:3.11-slim
+  timeout: 180              # seconds per command
+  container_cpu: 2
+  container_memory: 5120    # MB
+  container_disk: 51200     # MB
+  container_persistent: true
+  docker_forward_env: []    # env vars passed into the container — keep it empty unless needed
+</code></pre>
+<p>Test it:</p>
+<pre><code class="language-bash">hermes chat -q &quot;Run 'uname -a' and 'whoami' in the terminal and tell me the output.&quot;
+</code></pre>
+<p>The answer should mention <strong>Linux</strong> (not Darwin/macOS), which proves commands run in the container. <code>docker ps</code>
+shows the Hermes container while it's active.</p>
+<p><strong class="why">Why</strong> this is where the Docker sandbox actually takes effect. Hermes starts one long-lived container on first use
+and runs terminal, file and code tools through it. Files the agent writes in <code>/workspace</code> persist across
+conversations. Keep <code>docker_forward_env</code> empty so API keys never enter the container.</p>
+<p><strong>Also limit tools:</strong> run <code>hermes tools</code> and disable anything the client doesn't need, separately per messaging
+channel. <strong class="why">Why</strong> a tool that isn't enabled can't be misused.</p>
+<h2 id="9-enable-the-hermes-api-server">9. Enable the Hermes API server</h2>
+<p class="runas runas--agents">Run as aiagents</p>
+<pre><code class="language-bash">KEY=$(openssl rand -hex 32); echo &quot;Save this key in your password manager: $KEY&quot;
+cat &gt;&gt; ~/.hermes/.env &lt;&lt;EOF
+API_SERVER_ENABLED=true
+API_SERVER_HOST=127.0.0.1
+API_SERVER_PORT=8642
+API_SERVER_KEY=$KEY
+EOF
+chmod 600 ~/.hermes/.env
+</code></pre>
+<p><strong class="why">Why</strong> agent-api talks to Hermes through this API. <code>127.0.0.1</code> keeps it off the network, the key stops other local
+programs using it, and <code>chmod 600</code> makes the file readable by aiagents only.</p>
+<p>Test in the foreground:</p>
+<pre><code class="language-bash">hermes gateway             # look for: API server listening on http://127.0.0.1:8642
+</code></pre>
+<p>In a second SSH session (admin, then <code>sudo -iu aiagents</code>):</p>
+<pre><code class="language-bash">KEY=$(grep API_SERVER_KEY ~/.hermes/.env | cut -d= -f2)
+curl -s http://127.0.0.1:8642/health
+curl -s http://127.0.0.1:8642/v1/models -H &quot;Authorization: Bearer $KEY&quot;
+curl -sN http://127.0.0.1:8642/v1/responses -H &quot;Authorization: Bearer $KEY&quot; -H &quot;Content-Type: application/json&quot; \
+     -d '{&quot;model&quot;:&quot;hermes-agent&quot;,&quot;input&quot;:&quot;Say hi&quot;,&quot;conversation&quot;:&quot;test&quot;,&quot;stream&quot;:true}'
+</code></pre>
+<p>Stop it with Ctrl-C; it runs as a service from section 13. Check the web dashboard the same way:</p>
+<pre><code class="language-bash">hermes dashboard --no-open --port 9119
+# If it says web extras are missing, run the install command it prints, then try again.
+</code></pre>
+<p>The dashboard <strong>has no login</strong>, which is why it only ever listens on localhost and is reached through Tailscale.</p>
+<h2 id="10-install-agent-api">10. Install agent-api</h2>
+<p class="runas runas--agents">Run as aiagents</p>
+<pre><code class="language-bash">mkdir -p ~/apps &amp;&amp; cd ~/apps
+git clone https://github.com/YOUR-ORG/agent-api.git &amp;&amp; cd agent-api
+/opt/homebrew/bin/python3.12 -m venv .venv
+.venv/bin/pip install -e .
+cp .env.example .env &amp;&amp; chmod 600 .env
+.venv/bin/python -m app.cli hash-password                       # prints ADMIN_PASSWORD_HASH=...
+python3 -c &quot;import secrets;print(secrets.token_urlsafe(48))&quot;    # value for SECRET_KEY
+</code></pre>
+<p>Edit <code>.env</code> (<code>nano .env</code>):</p>
+<pre><code class="language-ini">HERMES_MODE=hermes
+HERMES_API_URL=http://127.0.0.1:8642
+HERMES_API_KEY=&lt;the key from section 9&gt;
+HERMES_DASHBOARD_URL=https://acme-agents.&lt;tailnet&gt;.ts.net:9119   # after section 14
+SECRET_KEY=&lt;random value&gt;
+COOKIE_SECURE=true
+CORS_ORIGINS=https://acme-agents.&lt;tailnet&gt;.ts.net
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD_HASH=&lt;from hash-password&gt;
+ADMIN_PASSWORD=
+DEV_SHOW_CODES=false
+</code></pre>
+<p><strong class="why">Why</strong> agent-api is the only thing that holds the Hermes key; browsers never see it. The password is stored as a
+hash, <code>SECRET_KEY</code> signs login cookies, and <code>COOKIE_SECURE=true</code> only sends them over HTTPS.</p>
+<p>Quick test (with <code>hermes gateway</code> running in the other session):</p>
+<pre><code class="language-bash">.venv/bin/uvicorn app.main:app --port 8000 &amp;
+curl -s http://127.0.0.1:8000/api/health        # &quot;mode&quot;:&quot;hermes&quot;, &quot;reachable&quot;:true
+kill %1
+</code></pre>
+<h2 id="11-build-agent-ui">11. Build agent-ui</h2>
+<p class="runas runas--agents">Run as aiagents</p>
+<pre><code class="language-bash">cd ~/apps
+git clone https://github.com/YOUR-ORG/agent-ui.git &amp;&amp; cd agent-ui
+npm ci &amp;&amp; npm run build            # creates dist/
+</code></pre>
+<p><strong class="why">Why</strong> the UI is just static files once built, which Caddy serves. No Node process needs to run in production.</p>
+<h2 id="12-check-the-web-server-config">12. Check the web server config</h2>
+<p class="runas runas--agents">Run as aiagents</p>
+<pre><code class="language-bash">caddy validate --config ~/apps/agent-api/deploy/Caddyfile
+</code></pre>
+<p><code>deploy/Caddyfile</code> serves <code>~/apps/agent-ui/dist</code> and passes <code>/api</code> to agent-api on <strong>127.0.0.1:8080</strong>, with
+streaming switched on so replies appear word by word.</p>
+<p><strong class="why">Why one origin</strong> the UI and the API share the same address, so login cookies work without cross-site settings.</p>
+<h2 id="13-run-everything-as-services">13. Run everything as services</h2>
+<p class="runas runas--admin">Run as admin</p>
+<pre><code class="language-bash">exit     # if you are still aiagents
+cd /Users/aiagents/apps/agent-api/deploy/launchd
+sudo cp ai.agents.*.plist /Library/LaunchDaemons/
+sudo chown root:wheel /Library/LaunchDaemons/ai.agents.*.plist
+sudo chmod 644 /Library/LaunchDaemons/ai.agents.*.plist
+for s in colima hermes-gateway hermes-dashboard agent-api caddy; do
+  sudo launchctl bootstrap system /Library/LaunchDaemons/ai.agents.$s.plist
+done
+sudo launchctl list | grep ai.agents      # each line should show a process ID
+</code></pre>
+<p><strong class="why">Why LaunchDaemons, installed by admin</strong> a LaunchDaemon starts at <strong>boot</strong>, before anyone logs in. That matters
+because FileVault prevents automatic login, so login-based services (LaunchAgents, <code>brew services</code> as a user) would
+never start on a headless server. Each plist has <code>UserName aiagents</code>, so the service still runs <strong>without</strong> admin
+rights. Only root can register system services, hence admin. <code>KeepAlive</code> restarts a service if it crashes.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Command (admin)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Logs</td>
+<td><code>tail -f /Users/aiagents/Library/Logs/&lt;name&gt;.log</code></td>
+</tr>
+<tr>
+<td>Restart one</td>
+<td><code>sudo launchctl kickstart -k system/ai.agents.agent-api</code></td>
+</tr>
+<tr>
+<td>Stop / unregister</td>
+<td><code>sudo launchctl bootout system/ai.agents.agent-api</code></td>
+</tr>
+<tr>
+<td>Status</td>
+<td><code>sudo launchctl print system/ai.agents.hermes-gateway \| grep state</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Two things to check:</p>
+<ul>
+<li>If you ran <code>hermes gateway start</code> or <code>hermes gateway install</code> earlier, Hermes may have created its own LaunchAgent
+  (<code>/Users/aiagents/Library/LaunchAgents/ai.hermes.gateway.plist</code>). Remove it so two gateways don't fight over
+  port 8642.</li>
+<li>If the gateway exits straight away, check the foreground command for your Hermes version
+  (<code>hermes gateway --help</code>) and fix <code>ProgramArguments</code> in the plist.</li>
+</ul>
+<p>The gateway plist sets <code>DOCKER_HOST=unix:///Users/aiagents/.colima/default/docker.sock</code>, so Hermes finds Colima
+even without a login shell. If the gateway starts before Colima is ready that's fine: Hermes only starts its
+container when the first command runs.</p>
+<h2 id="14-remote-access">14. Remote access</h2>
+<p class="runas runas--admin">Run as admin</p>
+<pre><code class="language-bash"># Chat + admin console, private to your tailnet:
+sudo tailscale serve --bg --https=443 http://127.0.0.1:8080
+# Full Hermes dashboard, private to your tailnet:
+sudo tailscale serve --bg --https=9119 http://127.0.0.1:9119
+tailscale serve status
+</code></pre>
+<ul>
+<li>Chat: <code>https://acme-agents.&lt;tailnet&gt;.ts.net/</code></li>
+<li>Admin console: <code>https://acme-agents.&lt;tailnet&gt;.ts.net/admin</code></li>
+<li>Hermes dashboard: <code>https://acme-agents.&lt;tailnet&gt;.ts.net:9119</code>. Put this in agent-api's <code>HERMES_DASHBOARD_URL</code>, then
+  restart agent-api. <strong>Admin → Hermes</strong> then shows an <em>Open full Hermes dashboard</em> button.</li>
+</ul>
+<p><strong class="why">Why Tailscale Serve</strong> it adds HTTPS and only lets devices in your tailnet connect, which is the protection the
+login-less Hermes dashboard needs.</p>
+<p><strong>Public chat for the client's customers</strong> (optional): publish only port 443 with <code>sudo tailscale funnel --bg 443</code>, or use
+a Cloudflare Tunnel to <code>http://127.0.0.1:8080</code>. <strong>Never</strong> publish 8642, 8000 or 9119. The admin console still needs
+its login, but keep admin use to the tailnet address where possible.</p>
+<p>Tailscale's <code>serve</code> and <code>funnel</code> options have changed between versions. If a command is rejected, check
+<code>tailscale serve --help</code>.</p>
+<h2 id="15-reboots-and-filevault">15. Reboots and FileVault</h2>
+<p class="runas runas--admin">Run as admin</p>
+<ul>
+<li><strong>Planned restart:</strong> <code>sudo fdesetup authrestart</code>. It unlocks the disk once for the next boot, so every service comes
+  back with no one at the Mac.</li>
+<li><strong>Unplanned (power cut, crash):</strong> the disk stays locked and <strong>no services run</strong> until it is unlocked. On macOS 26,
+  with Remote Login on and the Mac on <strong>Ethernet</strong>, you can SSH in before login (<code>ssh inagentic@&lt;LAN IP&gt;</code>) and type the
+  admin password to unlock it and finish booting. Tailscale isn't running yet at that point, so you need another way
+  onto the client's network (a small always-on device with Tailscale, or the router's VPN). Otherwise the client
+  types the password at the Mac.</li>
+</ul>
+<p><strong class="why">Why</strong> this is the trade-off of FileVault. Encryption protects the data if the Mac is stolen, at the cost of
+someone unlocking it after an unplanned restart. A UPS makes that rare.</p>
+<h2 id="16-verify-before-handover">16. Verify before handover</h2>
+<ul>
+<li class="task"><input type="checkbox" id="chk-0" data-id="0"><span><label for="chk-0"><code>curl -s http://127.0.0.1:8000/api/health</code> shows <code>"mode":"hermes"</code> and <code>"reachable":true</code></label></span></li>
+<li class="task"><input type="checkbox" id="chk-1" data-id="1"><span><label for="chk-1">Admin → <strong>Hermes</strong> shows <em>Reachable: Yes</em> and the model name</label></span></li>
+<li class="task"><input type="checkbox" id="chk-2" data-id="2"><span><label for="chk-2">Asking the agent to run <code>uname -a</code> reports <strong>Linux</strong> (Docker sandbox active), and <code>docker ps</code> (as aiagents)
+      shows the Hermes container</label></span></li>
+<li class="task"><input type="checkbox" id="chk-3" data-id="3"><span><label for="chk-3">The chat page answers questions; the avatar and quick replies work</label></span></li>
+<li class="task"><input type="checkbox" id="chk-4" data-id="4"><span><label for="chk-4">A risky request ("delete the test folder") asks for approval. If your Hermes version doesn't send approvals
+      through the API, enforce approvals in Hermes itself and keep commands in Docker.</label></span></li>
+<li class="task"><input type="checkbox" id="chk-5" data-id="5"><span><label for="chk-5">Telegram replies (if set up)</label></span></li>
+<li class="task"><input type="checkbox" id="chk-6" data-id="6"><span><label for="chk-6"><code>sudo fdesetup authrestart</code>: all five services come back by themselves</label></span></li>
+<li class="task"><input type="checkbox" id="chk-7" data-id="7"><span><label for="chk-7">Pull the power plug, restore it, unlock remotely: all five services come back</label></span></li>
+<li class="task"><input type="checkbox" id="chk-8" data-id="8"><span><label for="chk-8">From a device <strong>outside</strong> the tailnet, ports 8642, 8000, 9119 and 8080 can't be reached</label></span></li>
+</ul>
+<h2 id="17-operations">17. Operations</h2>
+<p><strong>Updates.</strong> Test each update on your own Mac first.</p>
+<pre><code class="language-bash"># as admin: system tools
+brew update &amp;&amp; brew upgrade
+# as aiagents: the agent and apps
+sudo -iu aiagents
+hermes update &amp;&amp; hermes config check          # if it reports changes: hermes config migrate
+cd ~/apps/agent-api &amp;&amp; git pull &amp;&amp; .venv/bin/pip install -e .
+cd ~/apps/agent-ui &amp;&amp; git pull &amp;&amp; npm ci &amp;&amp; npm run build
+exit
+# as admin: restart services
+sudo launchctl kickstart -k system/ai.agents.hermes-gateway
+sudo launchctl kickstart -k system/ai.agents.agent-api
+</code></pre>
+<p><strong class="why">Why the split</strong> admin owns the shared tools in <code>/opt/homebrew</code>; aiagents owns the agent and app code.</p>
+<p><strong>Backups.</strong> Time Machine to an encrypted external drive, plus a nightly copy of the agent's state:</p>
+<pre><code class="language-bash"># as admin (e.g. from a LaunchDaemon or cron):
+sudo tar -czf /Volumes/Backup/agents-$(date +%F).tgz -C /Users/aiagents \
+     .hermes apps/agent-api/data apps/agent-api/.env agent-workspace
+</code></pre>
+<p>The archive contains API keys, so keep the backup drive encrypted.</p>
+<p><strong>Monitoring.</strong> Point an uptime monitor (Uptime Kuma, Healthchecks.io, Better Stack) at
+<code>https://acme-agents.&lt;tailnet&gt;.ts.net/api/health</code> and have it alert you by email or Telegram.</p>
+<p><strong>Security checklist</strong></p>
+<ul>
+<li class="task"><input type="checkbox" id="chk-9" data-id="9"><span><label for="chk-9"><code>aiagents</code> is a standard user and is not allowed to SSH in</label></span></li>
+<li class="task"><input type="checkbox" id="chk-10" data-id="10"><span><label for="chk-10">SSH is key-only for <code>inagentic</code></label></span></li>
+<li class="task"><input type="checkbox" id="chk-11" data-id="11"><span><label for="chk-11">Hermes API, dashboard, agent-api and Caddy listen on 127.0.0.1 only</label></span></li>
+<li class="task"><input type="checkbox" id="chk-12" data-id="12"><span><label for="chk-12"><code>~/.hermes/.env</code> and <code>agent-api/.env</code> are <code>chmod 600</code></label></span></li>
+<li class="task"><input type="checkbox" id="chk-13" data-id="13"><span><label for="chk-13">Hermes terminal backend is <code>docker</code>; Colima shares only <code>~/agent-workspace</code>; <code>docker_forward_env</code> is empty</label></span></li>
+<li class="task"><input type="checkbox" id="chk-14" data-id="14"><span><label for="chk-14">Tools limited per channel (<code>hermes tools</code>); no skills from public hubs without reading them first</label></span></li>
+<li class="task"><input type="checkbox" id="chk-15" data-id="15"><span><label for="chk-15">Model provider spending limit set</label></span></li>
+<li class="task"><input type="checkbox" id="chk-16" data-id="16"><span><label for="chk-16">FileVault on, recovery key stored, UPS fitted</label></span></li>
+<li class="task"><input type="checkbox" id="chk-17" data-id="17"><span><label for="chk-17">Data processing agreement signed with the client; remote-access log kept</label></span></li>
+</ul>
+<h2 id="18-troubleshooting">18. Troubleshooting</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>What to check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Admin → Hermes shows <em>Reachable: No</em></td>
+<td><code>sudo launchctl list \| grep hermes</code>; <code>tail -50 /Users/aiagents/Library/Logs/hermes-gateway.log</code>; <code>curl 127.0.0.1:8642/health</code></td>
+</tr>
+<tr>
+<td><em>API key: Rejected</em></td>
+<td><code>HERMES_API_KEY</code> in agent-api's <code>.env</code> must equal <code>API_SERVER_KEY</code> in <code>~/.hermes/.env</code>; restart both services</td>
+</tr>
+<tr>
+<td>Agent says it can't run commands / Docker errors</td>
+<td>As aiagents: <code>colima status</code>, <code>docker ps</code>. Check <code>colima.log</code>. Confirm <code>DOCKER_HOST</code> in the gateway plist</td>
+</tr>
+<tr>
+<td><code>uname -a</code> reports Darwin instead of Linux</td>
+<td><code>terminal.backend</code> isn't <code>docker</code>: check <code>hermes config get terminal.backend</code>, then restart the gateway</td>
+</tr>
+<tr>
+<td>Colima doesn't start after a reboot</td>
+<td>See 6.5: check <code>colima.log</code>, then try <code>--vm-type qemu</code></td>
+</tr>
+<tr>
+<td>Container runs out of memory</td>
+<td>Raise Colima's <code>--memory</code> and Hermes' <code>container_memory</code> together (table 6.6)</td>
+</tr>
+<tr>
+<td>Chat replies appear all at once</td>
+<td>Caddy must keep <code>flush_interval -1</code> for <code>/api</code>; the tunnel mustn't buffer</td>
+</tr>
+<tr>
+<td>Admin login loops back to the login page</td>
+<td><code>COOKIE_SECURE=true</code> requires HTTPS; use the Tailscale <code>https://</code> address</td>
+</tr>
+<tr>
+<td>Gateway restarts in a loop</td>
+<td>Wrong <code>ProgramArguments</code> for your Hermes version, or a Hermes LaunchAgent already holds port 8642</td>
+</tr>
+<tr>
+<td>Nothing comes back after a power cut</td>
+<td>The disk is waiting for the FileVault unlock (section 15)</td>
+</tr>
+<tr>
+<td><code>hermes: command not found</code> in a service</td>
+<td>The plist's <code>PATH</code> must include <code>/Users/aiagents/.local/bin</code></td>
+</tr>
+<tr>
+<td><code>sudo</code> asks for aiagents' password</td>
+<td>You're in the aiagents shell; <code>exit</code> back to admin</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="appendix-commands-by-account">Appendix: commands by account</h2>
+<p><strong>🛠 admin (<code>inagentic</code>)</strong>: system and services</p>
+<pre><code class="language-bash">brew install …                                   # all software installs
+sudo pmset …; sudo fdesetup authrestart          # power and reboots
+sudo tailscale …                                 # remote access
+sudo launchctl bootstrap|kickstart|bootout system/ai.agents.&lt;name&gt;
+sudo -iu aiagents                                # switch to the agent account
+</code></pre>
+<p><strong>🤖 aiagents</strong>: the agent and its apps</p>
+<pre><code class="language-bash">colima start|stop|status; docker ps               # Docker VM and containers
+hermes model|tools|config|profile|doctor|update   # Hermes
+cd ~/apps/agent-api &amp;&amp; .venv/bin/pip install -e . # backend
+cd ~/apps/agent-ui &amp;&amp; npm ci &amp;&amp; npm run build     # frontend
+</code></pre></main></div>
+<script>
+(function () {
+  // Copy buttons on code blocks
+  document.querySelectorAll('pre').forEach(function (pre) {
+    var wrap = document.createElement('div'); wrap.className = 'codeblock';
+    pre.parentNode.insertBefore(wrap, pre); wrap.appendChild(pre);
+    var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'copy'; btn.textContent = 'Copy';
+    btn.addEventListener('click', function () {
+      var text = pre.innerText;
+      var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); };
+      try {
+        navigator.clipboard.writeText(text).then(done, function () { select(pre); btn.textContent = 'Press ⌘C'; });
+      } catch (e) { select(pre); btn.textContent = 'Press ⌘C'; }
+    });
+    wrap.appendChild(btn);
+  });
+  function select(el) { var r = document.createRange(); r.selectNodeContents(el); var s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+
+  // Checklists remembered in this browser only
+  var KEY = 'setup-guide-checks';
+  var saved = {}; try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
+  document.querySelectorAll('li.task input').forEach(function (box) {
+    var id = box.dataset.id; box.checked = !!saved[id];
+    box.closest('li').classList.toggle('is-done', box.checked);
+    box.addEventListener('change', function () {
+      saved[id] = box.checked; box.closest('li').classList.toggle('is-done', box.checked);
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+    });
+  });
+
+  // Highlight the current section in the contents
+  var links = {}; document.querySelectorAll('.toc a').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting && links[e.target.id]) {
+          Object.values(links).forEach(function (a) { a.classList.remove('is-active'); });
+          links[e.target.id].classList.add('is-active');
+        }
+      });
+    }, { rootMargin: '0px 0px -70% 0px' });
+    document.querySelectorAll('main h2[id], main h3[id]').forEach(function (h) { io.observe(h); });
+  }
+})();
+</script>
+</body>
+</html>

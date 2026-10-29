@@ -8,7 +8,8 @@ and gives visitors and admins only what they need.
 - **Visitors:** saved replies, "Save my work" (link a browser's work to a verified email)
 - **Admin:** login, dashboard checklist and stats, site settings, knowledge sources, Hermes status and skills
 - **Mock agent:** the whole UI works without Hermes (`HERMES_MODE=mock`) for development, demos and tests
-- **Deploy kit:** launchd services and a Caddyfile for a Mac mini; see [docs/HERMES_MAC_MINI_SETUP.md](docs/HERMES_MAC_MINI_SETUP.md)
+- **Deploy kit:** launchd services (incl. Colima/Docker) and a Caddyfile for a Mac mini; see [docs/HERMES_MAC_MINI_SETUP.md](docs/HERMES_MAC_MINI_SETUP.md)
+  (HTML version: `docs/HERMES_MAC_MINI_SETUP.html`, rebuilt with `python scripts/build_docs.py`)
 
 ```
 agent-ui ──/api──► agent-api ──Bearer key──► Hermes API server (127.0.0.1:8642)

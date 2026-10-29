@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Colima (Docker engine VM) for the aiagents user. Starts at boot, restarted if it stops. Uses the VM settings from the first "colima start" (see the setup guide, section 6). -->
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>/Users/aiagents</string>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>ai.agents.colima</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/bin/colima</string>
+		<string>start</string>
+		<string>--foreground</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/aiagents/Library/Logs/colima.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/aiagents/Library/Logs/colima.log</string>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>UserName</key>
+	<string>aiagents</string>
+	<key>WorkingDirectory</key>
+	<string>/Users/aiagents</string>
+</dict>
+</plist>
