@@ -134,8 +134,8 @@ li.task.is-done span { color: var(--muted); text-decoration: line-through; }
 <p class="lede">This guide turns a Mac mini (M6, macOS 26 Tahoe) into an always-on AI agent server for a client. It runs
 <strong>Hermes Agent</strong> with commands sandboxed in <strong>Docker</strong>, and connects it to <strong>agent-ui</strong> (chat + admin console)
 through <strong>agent-api</strong> (Python backend).</p>
-<p><strong>Time:</strong> about 2½ hours. <strong>You need:</strong> the Mac on wired Ethernet, an SSH-capable laptop, and the accounts listed
-in section 1.</p>
+<p><strong>Time:</strong> about 2½ hours. <strong>You need:</strong> the Mac on the client's network (wired Ethernet recommended, Wi-Fi works),
+an SSH-capable laptop, and the accounts listed in section 1.</p>
 <p>Hermes changes quickly. Where a command or flag might differ in your version, check it with
 <code>hermes &lt;command&gt; --help</code>. The same applies to <code>tailscale</code> and <code>colima</code>.</p>
 <hr />
@@ -233,10 +233,18 @@ exit                   # back to inagentic
 <p><strong>Hardware</strong></p>
 <ul>
 <li>Mac mini M6. 32 GB of memory if you'll run local models; 16 GB is enough for cloud models plus Docker.</li>
-<li><strong>Wired Ethernet.</strong> Remote FileVault unlock after a reboot (section 15) needs it.</li>
-<li>A small <strong>UPS</strong> (£60–£100). Most unplanned reboots are short power cuts, and each one locks the disk until someone
-  unlocks it.</li>
+<li><strong>Network: wired Ethernet recommended, Wi-Fi works.</strong> Day-to-day running is fine on either.
+  <strong class="why">Why Ethernet is recommended</strong></li>
+<li><em>Remote unlock after a power cut.</em> Until FileVault is unlocked, the Mac sits at the pre-login stage. Macs have
+    historically joined Wi-Fi only after a user logs in, so remote SSH unlock (section 15) didn't work over Wi-Fi in
+    early macOS 26 builds. It reportedly works over Wi-Fi from macOS 26.5, but a cable is the reliable option.</li>
+<li><em>Steadier live calls.</em> A cable gives consistent latency, which matters for real-time voice and avatar
+    conversations more than for text chat.</li>
 </ul>
+<p><strong>If you use Wi-Fi:</strong> join the network as the <strong>admin</strong> account with <em>Remember this network</em> ticked, so it's
+  stored system-wide rather than in one user's keychain. Then run the power-cut test in section 16 before handover.
+- A small <strong>UPS</strong> (£60–£100). Most unplanned reboots are short power cuts, and each one locks the disk until someone
+  unlocks it.</p>
 <p><strong>Accounts and keys.</strong> Put each in your password manager as you create it.</p>
 <ul>
 <li>A model provider API key (e.g. Anthropic), in the <strong>client's</strong> account or yours billed onward, with a <strong>monthly
@@ -649,7 +657,8 @@ its login, but keep admin use to the tailnet address where possible.</p>
 <li><strong>Planned restart:</strong> <code>sudo fdesetup authrestart</code>. It unlocks the disk once for the next boot, so every service comes
   back with no one at the Mac.</li>
 <li><strong>Unplanned (power cut, crash):</strong> the disk stays locked and <strong>no services run</strong> until it is unlocked. On macOS 26,
-  with Remote Login on and the Mac on <strong>Ethernet</strong>, you can SSH in before login (<code>ssh inagentic@&lt;LAN IP&gt;</code>) and type the
+  with Remote Login on and the Mac on <strong>Ethernet</strong> (Wi-Fi only if your version supports it, see section 1), you can SSH in
+  before login (<code>ssh inagentic@&lt;LAN IP&gt;</code>) and type the
   admin password to unlock it and finish booting. Tailscale isn't running yet at that point, so you need another way
   onto the client's network (a small always-on device with Tailscale, or the router's VPN). Otherwise the client
   types the password at the Mac.</li>
@@ -667,7 +676,9 @@ someone unlocking it after an unplanned restart. A UPS makes that rare.</p>
       through the API, enforce approvals in Hermes itself and keep commands in Docker.</label></span></li>
 <li class="task"><input type="checkbox" id="chk-5" data-id="5"><span><label for="chk-5">Telegram replies (if set up)</label></span></li>
 <li class="task"><input type="checkbox" id="chk-6" data-id="6"><span><label for="chk-6"><code>sudo fdesetup authrestart</code>: all five services come back by themselves</label></span></li>
-<li class="task"><input type="checkbox" id="chk-7" data-id="7"><span><label for="chk-7">Pull the power plug, restore it, unlock remotely: all five services come back</label></span></li>
+<li class="task"><input type="checkbox" id="chk-7" data-id="7"><span><label for="chk-7">Pull the power plug, restore it, unlock remotely: all five services come back. <strong>On Wi-Fi this test is
+      essential:</strong> if you can't SSH in before login, connect Ethernet, or agree with the client that they type the
+      admin password at the Mac after an unplanned outage</label></span></li>
 <li class="task"><input type="checkbox" id="chk-8" data-id="8"><span><label for="chk-8">From a device <strong>outside</strong> the tailnet, ports 8642, 8000, 9119 and 8080 can't be reached</label></span></li>
 </ul>
 <h2 id="17-operations">17. Operations</h2>
