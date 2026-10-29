@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Caddy: serves agent-ui and proxies /api on 127.0.0.1:8080. -->
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>/Users/aiagents</string>
+		<key>PATH</key>
+		<string>/Users/aiagents/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>ai.agents.caddy</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/bin/caddy</string>
+		<string>run</string>
+		<string>--config</string>
+		<string>/Users/aiagents/apps/agent-api/deploy/Caddyfile</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/aiagents/Library/Logs/caddy.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/aiagents/Library/Logs/caddy.log</string>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>UserName</key>
+	<string>aiagents</string>
+	<key>WorkingDirectory</key>
+	<string>/Users/aiagents</string>
+</dict>
+</plist>
