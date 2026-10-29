@@ -4,8 +4,8 @@ This guide turns a Mac mini (M6, macOS 26 Tahoe) into an always-on AI agent serv
 **Hermes Agent** with commands sandboxed in **Docker**, and connects it to **agent-ui** (chat + admin console)
 through **agent-api** (Python backend).
 
-**Time:** about 2½ hours. **You need:** the Mac on wired Ethernet, an SSH-capable laptop, and the accounts listed
-in section 1.
+**Time:** about 2½ hours. **You need:** the Mac on the client's network (wired Ethernet recommended, Wi-Fi works),
+an SSH-capable laptop, and the accounts listed in section 1.
 
 Hermes changes quickly. Where a command or flag might differ in your version, check it with
 `hermes <command> --help`. The same applies to `tailscale` and `colima`.
@@ -80,7 +80,16 @@ Everything listens on **127.0.0.1 only**. Nothing is reachable from the network 
 
 **Hardware**
 - Mac mini M6. 32 GB of memory if you'll run local models; 16 GB is enough for cloud models plus Docker.
-- **Wired Ethernet.** Remote FileVault unlock after a reboot (section 15) needs it.
+- **Network: wired Ethernet recommended, Wi-Fi works.** Day-to-day running is fine on either.
+  **Why Ethernet is recommended:**
+  - *Remote unlock after a power cut.* Until FileVault is unlocked, the Mac sits at the pre-login stage. Macs have
+    historically joined Wi-Fi only after a user logs in, so remote SSH unlock (section 15) didn't work over Wi-Fi in
+    early macOS 26 builds. It reportedly works over Wi-Fi from macOS 26.5, but a cable is the reliable option.
+  - *Steadier live calls.* A cable gives consistent latency, which matters for real-time voice and avatar
+    conversations more than for text chat.
+
+  **If you use Wi-Fi:** join the network as the **admin** account with *Remember this network* ticked, so it's
+  stored system-wide rather than in one user's keychain. Then run the power-cut test in section 16 before handover.
 - A small **UPS** (£60–£100). Most unplanned reboots are short power cuts, and each one locks the disk until someone
   unlocks it.
 
@@ -536,7 +545,8 @@ Tailscale's `serve` and `funnel` options have changed between versions. If a com
 - **Planned restart:** `sudo fdesetup authrestart`. It unlocks the disk once for the next boot, so every service comes
   back with no one at the Mac.
 - **Unplanned (power cut, crash):** the disk stays locked and **no services run** until it is unlocked. On macOS 26,
-  with Remote Login on and the Mac on **Ethernet**, you can SSH in before login (`ssh inagentic@<LAN IP>`) and type the
+  with Remote Login on and the Mac on **Ethernet** (Wi-Fi only if your version supports it, see section 1), you can SSH in
+  before login (`ssh inagentic@<LAN IP>`) and type the
   admin password to unlock it and finish booting. Tailscale isn't running yet at that point, so you need another way
   onto the client's network (a small always-on device with Tailscale, or the router's VPN). Otherwise the client
   types the password at the Mac.
@@ -555,7 +565,9 @@ someone unlocking it after an unplanned restart. A UPS makes that rare.
       through the API, enforce approvals in Hermes itself and keep commands in Docker.
 - [ ] Telegram replies (if set up)
 - [ ] `sudo fdesetup authrestart`: all five services come back by themselves
-- [ ] Pull the power plug, restore it, unlock remotely: all five services come back
+- [ ] Pull the power plug, restore it, unlock remotely: all five services come back. **On Wi-Fi this test is
+      essential:** if you can't SSH in before login, connect Ethernet, or agree with the client that they type the
+      admin password at the Mac after an unplanned outage
 - [ ] From a device **outside** the tailnet, ports 8642, 8000, 9119 and 8080 can't be reached
 
 ## 17. Operations
