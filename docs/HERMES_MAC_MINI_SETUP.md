@@ -121,8 +121,11 @@ Everything listens on **127.0.0.1 only**. Nothing is reachable from the network 
    manager and agree with the client who else holds it.
    **Why:** the Mac will hold client data, API keys and agent memory. Without disk encryption, anyone who takes the
    Mac can read all of it.
-4. **Name the Mac:** System Settings → General → Sharing → Local hostname, e.g. `acme-agents`.
-   **Why:** the name becomes its Tailscale address (`acme-agents.<tailnet>.ts.net`).
+4. **Name the Mac:** System Settings → General → Sharing → Local hostname: `ina-mini-01` (InAgentic Mac mini
+   no. 1; the next machine is `ina-mini-02`). Record which number belongs to which client in your password manager.
+   **Why:** the name becomes its Tailscale address (`ina-mini-01.<tailnet>.ts.net`). A numbered name works before you
+   know the client, stays unique across machines, and keeps the client's name out of your tailnet, logs and
+   certificates. To rename later, see *Renaming the Mac* in section 17.
 5. **Keep it awake and make it restart after a power cut:**
    ```bash
    sudo pmset -a sleep 0 disksleep 0 displaysleep 10 autorestart 1 womp 1
@@ -136,7 +139,7 @@ Everything listens on **127.0.0.1 only**. Nothing is reachable from the network 
    *Allow access for: Only these users* → InAgentic Admin. Then:
    ```bash
    # on YOUR laptop:
-   ssh-copy-id inagentic@acme-agents.local
+   ssh-copy-id inagentic@ina-mini-01.local
    # on the Mac:
    sudo tee /etc/ssh/sshd_config.d/100-keys-only.conf >/dev/null <<'EOF'
    PasswordAuthentication no
@@ -193,7 +196,7 @@ installed instead of trying to install them without permission.
 ```bash
 brew install tailscale
 sudo brew services start tailscale          # runs tailscaled as root at every boot
-sudo tailscale up --hostname acme-agents     # opens a login link; approve the Mac in your tailnet
+sudo tailscale up --hostname ina-mini-01     # opens a login link; approve the Mac in your tailnet
 tailscale status
 ```
 
@@ -425,10 +428,10 @@ Edit `.env` (`nano .env`):
 HERMES_MODE=hermes
 HERMES_API_URL=http://127.0.0.1:8642
 HERMES_API_KEY=<the key from section 9>
-HERMES_DASHBOARD_URL=https://acme-agents.<tailnet>.ts.net:9119   # after section 14
+HERMES_DASHBOARD_URL=https://ina-mini-01.<tailnet>.ts.net:9119   # after section 14
 SECRET_KEY=<random value>
 COOKIE_SECURE=true
-CORS_ORIGINS=https://acme-agents.<tailnet>.ts.net
+CORS_ORIGINS=https://ina-mini-01.<tailnet>.ts.net
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD_HASH=<from hash-password>
 ADMIN_PASSWORD=
@@ -523,9 +526,9 @@ sudo tailscale serve --bg --https=9119 http://127.0.0.1:9119
 tailscale serve status
 ```
 
-- Chat: `https://acme-agents.<tailnet>.ts.net/`
-- Admin console: `https://acme-agents.<tailnet>.ts.net/admin`
-- Hermes dashboard: `https://acme-agents.<tailnet>.ts.net:9119`. Put this in agent-api's `HERMES_DASHBOARD_URL`, then
+- Chat: `https://ina-mini-01.<tailnet>.ts.net/`
+- Admin console: `https://ina-mini-01.<tailnet>.ts.net/admin`
+- Hermes dashboard: `https://ina-mini-01.<tailnet>.ts.net:9119`. Put this in agent-api's `HERMES_DASHBOARD_URL`, then
   restart agent-api. **Admin → Hermes** then shows an *Open full Hermes dashboard* button.
 
 **Why Tailscale Serve:** it adds HTTPS and only lets devices in your tailnet connect, which is the protection the
@@ -600,8 +603,21 @@ sudo tar -czf /Volumes/Backup/agents-$(date +%F).tgz -C /Users/aiagents \
 
 The archive contains API keys, so keep the backup drive encrypted.
 
+**Renaming the Mac** (optional, e.g. to the client's name). As admin:
+
+```bash
+sudo scutil --set ComputerName "acme-agents"
+sudo scutil --set LocalHostName "acme-agents"
+sudo scutil --set HostName "acme-agents"
+sudo tailscale set --hostname acme-agents          # or rename it in the Tailscale admin console
+```
+
+Then update `HERMES_DASHBOARD_URL` and `CORS_ORIGINS` in `/Users/aiagents/apps/agent-api/.env`, restart agent-api
+(`sudo launchctl kickstart -k system/ai.agents.agent-api`), and re-run the two `tailscale serve` commands if the HTTPS
+address doesn't follow. Account names and services don't change.
+
 **Monitoring.** Point an uptime monitor (Uptime Kuma, Healthchecks.io, Better Stack) at
-`https://acme-agents.<tailnet>.ts.net/api/health` and have it alert you by email or Telegram.
+`https://ina-mini-01.<tailnet>.ts.net/api/health` and have it alert you by email or Telegram.
 
 **Security checklist**
 - [ ] `aiagents` is a standard user and is not allowed to SSH in
