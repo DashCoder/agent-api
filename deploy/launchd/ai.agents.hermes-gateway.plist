@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hermes gateway (API server + messaging channels). Runs at boot as the non-admin aiagents user; restarted if it crashes. Check the foreground command for your Hermes version by running hermes gateway with the help flag -->
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>/Users/aiagents</string>
+		<key>PATH</key>
+		<string>/Users/aiagents/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>ai.agents.hermes-gateway</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/aiagents/.local/bin/hermes</string>
+		<string>gateway</string>
+		<string>run</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/aiagents/Library/Logs/hermes-gateway.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/aiagents/Library/Logs/hermes-gateway.log</string>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>UserName</key>
+	<string>aiagents</string>
+	<key>WorkingDirectory</key>
+	<string>/Users/aiagents</string>
+</dict>
+</plist>

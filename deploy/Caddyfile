@@ -1,0 +1,27 @@
+# Serves the built agent-ui and proxies /api to agent-api — one origin, so cookies just work.
+# Listens on localhost only; publish it with Tailscale Serve/Funnel or Cloudflare Tunnel.
+{
+	admin off
+}
+
+http://127.0.0.1:8080 {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000 {
+			flush_interval -1   # stream SSE replies immediately
+		}
+	}
+
+	handle {
+		root * /Users/aiagents/apps/agent-ui/dist
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options SAMEORIGIN
+	}
+}
