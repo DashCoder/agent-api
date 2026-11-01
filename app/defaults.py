@@ -22,6 +22,9 @@ DEFAULT_SITE = {
         "speakReplies": False,
         # Microsoft Edge neural voice used by /api/tts, e.g. en-GB-RyanNeural, en-GB-SoniaNeural
         "voice": "en-GB-RyanNeural",
+        # Live lip-synced avatar from Simli (needs SIMLI_API_KEY in .env). Visitors can switch it on.
+        "simliEnabled": False,
+        "simliFaceId": "",
     },
     "quickReplies": [
         "What services do you offer?",

@@ -141,3 +141,34 @@ def test_tts_reports_unavailable(client, monkeypatch):
 
     monkeypatch.setattr(tts_mod, "synthesize", broken)
     assert client.post("/api/tts", json={"text": "hello"}).status_code == 503
+
+
+def test_simli_token_is_off_until_configured(client):
+    assert client.get("/api/config").json()["avatar"]["simliAvailable"] is False
+    assert client.post("/api/simli/token").status_code == 404
+
+
+def test_simli_token_cooldown_and_daily_cap(tmp_path, monkeypatch):
+    from app.routers import simli as simli_mod
+
+    s = Settings(hermes_mode="mock", data_dir=tmp_path, admin_password="secret", mock_delay_s=0,
+                 secret_key="test", simli_api_key="sk", simli_daily_sessions=1, _env_file=None)
+    app = create_app(s)
+    calls = []
+
+    async def fake_token(settings, face_id):
+        calls.append(face_id)
+        return "tok-123"
+
+    monkeypatch.setattr(simli_mod, "request_token", fake_token)
+    simli_mod._last_request.clear()
+    c = TestClient(app)
+    c.post("/api/auth/login", json={"username": "admin", "password": "secret"})
+    c.put("/api/admin/settings", json={"avatar": {"simliEnabled": True, "simliFaceId": "face-1"}})
+    assert c.get("/api/config").json()["avatar"]["simliAvailable"] is True
+    r = c.post("/api/simli/token")
+    assert r.status_code == 200 and r.json()["sessionToken"] == "tok-123" and calls == ["face-1"]
+    assert c.post("/api/simli/token").status_code == 429          # cooldown
+    simli_mod._last_request.clear()
+    assert c.post("/api/simli/token").status_code == 429          # daily cap of 1
+    assert "sk" not in c.get("/api/config").text
