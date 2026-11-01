@@ -20,6 +20,8 @@ DEFAULT_SITE = {
         "idleVideos": [],
         "talkVideos": [],
         "speakReplies": False,
+        # Microsoft Edge neural voice used by /api/tts, e.g. en-GB-RyanNeural, en-GB-SoniaNeural
+        "voice": "en-GB-RyanNeural",
     },
     "quickReplies": [
         "What services do you offer?",

@@ -113,3 +113,31 @@ def test_password_hash_roundtrip():
 ])
 def test_translate_hermes_event(event, payload, expected):
     assert translate_hermes_event(event, payload) == expected
+
+
+def test_tts_returns_mp3_and_cleans_text(client, monkeypatch):
+    from app.routers import tts as tts_mod
+
+    seen = {}
+
+    async def fake(text, voice):
+        seen["text"], seen["voice"] = text, voice
+        return b"ID3fake"
+
+    monkeypatch.setattr(tts_mod, "synthesize", fake)
+    r = client.post("/api/tts", json={"text": "**Done!** See https://x.y\n```py\nprint(1)\n```"})
+    assert r.status_code == 200 and r.headers["content-type"] == "audio/mpeg"
+    assert seen["voice"] == "en-GB-RyanNeural"
+    assert "print" not in seen["text"] and "https" not in seen["text"] and "*" not in seen["text"]
+    assert client.post("/api/tts", json={"text": "hi", "voice": "bad voice; rm"}).status_code == 400
+    assert client.post("/api/tts", json={"text": "```x```"}).status_code in (200, 204)
+
+
+def test_tts_reports_unavailable(client, monkeypatch):
+    from app.routers import tts as tts_mod
+
+    async def broken(text, voice):
+        raise OSError("offline")
+
+    monkeypatch.setattr(tts_mod, "synthesize", broken)
+    assert client.post("/api/tts", json={"text": "hello"}).status_code == 503
