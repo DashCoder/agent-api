@@ -14,7 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from .config import Settings, get_settings
 from .db import DB
 from .hermes import make_agent
-from .routers import admin, chat, public, user
+from .routers import admin, chat, public, tts, user
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -34,7 +34,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(CORSMiddleware, allow_origins=s.cors_origin_list, allow_credentials=True,
                        allow_methods=["*"], allow_headers=["*"])
 
-    for r in (public.router, chat.router, user.router, admin.router):
+    for r in (public.router, chat.router, user.router, admin.router, tts.router):
         app.include_router(r)
     return app
 
