@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     data_dir: Path = Path("./data")
     max_upload_mb: int = 10
+    # Folders whose files the chat may show and download (comma-separated). Agent output only — never ~ itself.
+    file_dirs: str = "~/.hermes/cache/generated,~/agent-workspace"
 
     # --- Admin login -------------------------------------------------------
     admin_username: str = "admin"

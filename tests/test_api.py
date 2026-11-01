@@ -172,3 +172,23 @@ def test_simli_token_cooldown_and_daily_cap(tmp_path, monkeypatch):
     simli_mod._last_request.clear()
     assert c.post("/api/simli/token").status_code == 429          # daily cap of 1
     assert "sk" not in c.get("/api/config").text
+
+
+def test_files_only_served_from_allowed_folders(tmp_path):
+    allowed = tmp_path / "generated"
+    allowed.mkdir()
+    img = allowed / "robot.png"
+    img.write_bytes(b"\x89PNG fake")
+    secret = tmp_path / "secret.env"
+    secret.write_text("KEY=1")
+    (allowed / "link.env").symlink_to(secret)
+    s = Settings(hermes_mode="mock", data_dir=tmp_path / "d", mock_delay_s=0, secret_key="t",
+                 file_dirs=str(allowed), _env_file=None)
+    c = TestClient(create_app(s))
+    r = c.get("/api/files", params={"path": str(img)})
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    r = c.get("/api/files", params={"path": str(img), "download": "true"})
+    assert "attachment" in r.headers["content-disposition"]
+    for bad in (str(secret), str(allowed / "link.env"), str(allowed / ".." / "secret.env"), "/etc/passwd",
+                str(allowed / "missing.png")):
+        assert c.get("/api/files", params={"path": bad}).status_code == 404
