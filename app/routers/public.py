@@ -23,7 +23,11 @@ def public_config(request: Request, db: DB = Depends(get_db)):
     """Everything the chat page needs. Never include secrets here."""
     owner_key(request)  # make sure the visitor cookie exists
     site = get_site(db)
-    return {k: site[k] for k in ("brand", "assistant", "avatar", "quickReplies")}
+    out = {k: site[k] for k in ("brand", "assistant", "avatar", "quickReplies")}
+    s: Settings = request.app.state.settings
+    out["avatar"] = {**out["avatar"], "simliAvailable": bool(
+        s.simli_api_key and out["avatar"].get("simliEnabled") and out["avatar"].get("simliFaceId"))}
+    return out
 
 
 class LoginBody(BaseModel):

@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     admin_password_hash: str = ""
     admin_password: str = ""
 
+    # --- Live avatar (Simli, optional) ------------------------------------------
+    # The key stays on the server; browsers get short-lived session tokens from /api/simli/token.
+    simli_api_key: str = ""
+    simli_api_url: str = "https://api.simli.ai"
+    simli_max_session_s: int = 600
+    simli_daily_sessions: int = 40  # stops runaway costs; resets at midnight UTC
+
     # --- Dev helpers ---------------------------------------------------------
     # Return the "Save my work" verification code in the API response instead of emailing it.
     dev_show_codes: bool = True
