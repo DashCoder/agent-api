@@ -27,6 +27,8 @@ def public_config(request: Request, db: DB = Depends(get_db)):
     s: Settings = request.app.state.settings
     out["avatar"] = {**out["avatar"], "simliAvailable": bool(
         s.simli_api_key and out["avatar"].get("simliEnabled") and out["avatar"].get("simliFaceId"))}
+    out["plugins"] = [{"name": p.name, "version": p.version, **p.public_info}
+                      for p in request.app.state.plugins.values()]
     return out
 
 
@@ -38,8 +40,10 @@ class LoginBody(BaseModel):
 @router.post("/auth/login")
 def login(body: LoginBody, request: Request, s: Settings = Depends(get_settings)):
     if not check_admin_credentials(body.username, body.password, s):
+        request.app.state.db.audit(body.username[:64], "admin.login_failed", "admin")
         raise HTTPException(status_code=401, detail="Wrong username or password")
     request.session["user"] = {"username": body.username, "role": "admin"}
+    request.app.state.db.audit(body.username, "admin.login", "admin")
     return {"user": request.session["user"]}
 
 

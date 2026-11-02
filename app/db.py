@@ -30,6 +30,14 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS knowledge (
     id TEXT PRIMARY KEY, kind TEXT NOT NULL, value TEXT NOT NULL, created_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS plugin_migrations (
+    plugin TEXT NOT NULL, version INTEGER NOT NULL, applied_at REAL NOT NULL, PRIMARY KEY (plugin, version)
+);
+CREATE TABLE IF NOT EXISTS audit_events (
+    id TEXT PRIMARY KEY, ts REAL NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL,
+    target TEXT NOT NULL, detail TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_audit_ts ON audit_events(ts);
 CREATE TABLE IF NOT EXISTS uploads (
     id TEXT PRIMARY KEY, owner TEXT NOT NULL, filename TEXT NOT NULL,
     path TEXT NOT NULL, size INTEGER NOT NULL, created_at REAL NOT NULL
@@ -75,6 +83,27 @@ class DB:
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             (key, json.dumps(value)),
         )
+
+    # -- plugin migrations ------------------------------------------------------------
+    def migrate(self, plugin: str, statements: list[str]) -> None:
+        """Run each statement once, in order; statement N is version N for that plugin."""
+        done = {r["version"] for r in self.all("SELECT version FROM plugin_migrations WHERE plugin = ?", (plugin,))}
+        for version, sql in enumerate(statements, start=1):
+            if version in done:
+                continue
+            with self._lock:
+                self._conn.executescript(sql)
+                self._conn.execute("INSERT INTO plugin_migrations VALUES (?,?,?)", (plugin, version, time.time()))
+                self._conn.commit()
+
+    def audit_events(self, limit: int = 200) -> list[dict[str, Any]]:
+        rows = self.all("SELECT * FROM audit_events ORDER BY ts DESC LIMIT ?", (limit,))
+        return [{**r, "detail": json.loads(r["detail"])} for r in rows]
+
+    # -- audit trail (append-only) -------------------------------------------------
+    def audit(self, actor: str, action: str, target: str, **detail: Any) -> None:
+        self.execute("INSERT INTO audit_events(id, ts, actor, action, target, detail) VALUES(?,?,?,?,?,?)",
+                     (new_id(), time.time(), actor, action, target, json.dumps(detail)))
 
     # -- messages ---------------------------------------------------------------
     def add_message(self, session_id: str, role: str, text: str) -> dict[str, Any]:
