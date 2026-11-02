@@ -90,3 +90,9 @@ async def hermes_status(request: Request, s: Settings = Depends(get_settings)):
     agent = get_agent(request)
     return {"status": await agent.status(), "skills": await agent.skills(),
             "dashboardUrl": s.hermes_dashboard_url or None, "mode": s.hermes_mode}
+
+
+@router.get("/audit")
+def audit(limit: int = 200, db: DB = Depends(get_db)):
+    """Append-only trail of logins, agent actions and approvals, from the core and every plugin."""
+    return {"items": db.audit_events(min(max(limit, 1), 1000))}

@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     simli_max_session_s: int = 600
     simli_daily_sessions: int = 40  # stops runaway costs; resets at midnight UTC
 
+    # --- Plugins ------------------------------------------------------------------
+    plugins: str = ""   # comma-separated plugin names (or module:attr) to switch on; see app/plugins.py
+    mcp_key: str = ""   # Hermes sends this as a Bearer token to /api/mcp; empty = MCP endpoint off
+
     # --- Dev helpers ---------------------------------------------------------
     # Return the "Save my work" verification code in the API response instead of emailing it.
     dev_show_codes: bool = True

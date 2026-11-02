@@ -86,6 +86,8 @@ to write skills or memory, for faster, side-effect-free replies.
 | GET/PUT | `/api/admin/settings` | admin | Site settings (PUT deep-merges) |
 | GET/POST/DELETE | `/api/admin/knowledge[/{id}]` | admin | Knowledge sources |
 | GET | `/api/admin/hermes` | admin | Hermes status, skills, dashboard URL |
+| GET | `/api/admin/audit` | admin | Audit trail (core and plugins) |
+| POST | `/api/mcp` | Hermes (Bearer `MCP_KEY`) | MCP tools contributed by plugins |
 
 Visitors are identified by a signed session cookie. Once they verify an email, their sessions, saved replies and
 uploads move to that email.
@@ -104,6 +106,42 @@ deploy/            launchd plists + Caddyfile for macOS
 docs/              Mac mini + Hermes setup guide
 tests/             pytest (API + Hermes adapter with a fake Hermes server)
 ```
+
+## Plugins
+
+agent-api is a small, stable core; extra features ship as **plugins**, separate Python packages that the core
+loads at start-up. A plugin can add API routes, MCP tools for Hermes, its own database tables (with migrations), its
+own settings and entries in `/api/config`, using only `app/plugins.py` and the shared services (`require_admin`,
+the database, `audit()`). Nothing in the core imports a plugin.
+
+```toml
+# the plugin's pyproject.toml
+[project.entry-points."agent_api.plugins"]
+builder = "my_plugin:plugin"
+```
+
+```bash
+.venv/bin/pip install -e ../my-plugin      # into agent-api's own virtualenv
+echo "PLUGINS=builder" >> .env              # switch it on by name, then restart
+```
+
+Plugins declare which plugin-API versions they support (`PLUGIN_API`, currently 1). An incompatible or missing
+plugin stops start-up with a clear error, rather than failing later. See `tests/test_plugins.py` for a complete
+example plugin.
+
+**MCP for Hermes.** All plugin tools are served from one endpoint, `/api/mcp`, protected by `MCP_KEY`:
+
+```yaml
+# ~/.hermes/config.yaml
+mcp_servers:
+  inagentic:
+    url: "http://127.0.0.1:8000/api/mcp"
+    headers:
+      Authorization: "Bearer ${MCP_KEY}"
+```
+
+**Audit trail.** `db.audit(actor, action, target, **detail)` appends to `audit_events`; the core logs admin logins
+and denied MCP calls, and plugins log their own actions. `GET /api/admin/audit` returns the trail.
 
 ## Extending
 
