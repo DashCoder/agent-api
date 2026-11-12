@@ -92,7 +92,8 @@ def test_hermes_config_rewrites_only_the_model_block(tmp_path):
     backup = hermes_config.write(home, "ollama", "qwen3:14b", "http://127.0.0.1:11434")
     text = (home / "config.yaml").read_text()
     assert "toolsets:\n  - web\nmodel:\n  default: qwen3:14b\n  provider: custom\n  base_url: http://127.0.0.1:11434/v1\n" in text
-    assert "context_length: 64000" in text and "terminal:\n  backend: local" in text and "claude-sonnet" not in text
+    assert "context_length: 65536\n  ollama_num_ctx: 65536" in text and "terminal:\n  backend: local" in text
+    assert "claude-sonnet" not in text
     assert backup.read_text() == HERMES_YAML
     assert hermes_config.read(home)["kind"] == "ollama"
     hermes_config.write(home, "anthropic", "claude-sonnet-4-6", "http://x")

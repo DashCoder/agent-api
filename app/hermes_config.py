@@ -29,7 +29,7 @@ KINDS = {
     "anthropic": "Anthropic (Claude API)",
     "bedrock": "Claude on AWS Bedrock",
 }
-OLLAMA_CONTEXT = 64000
+OLLAMA_CONTEXT = 65536   # Hermes needs >= 64,000; the model itself must support it (qwen3:14b stops at 40,960)
 MODEL_RE = re.compile(r"^[A-Za-z0-9._:/@-]{1,160}$")
 
 
@@ -69,7 +69,8 @@ def read(home: Path) -> dict[str, str] | None:
 def render_block(kind: str, model: str, ollama_url: str) -> list[str]:
     if kind == "ollama":
         return ["model:", f"  default: {model}", "  provider: custom",
-                f"  base_url: {ollama_url.rstrip('/')}/v1", f"  context_length: {OLLAMA_CONTEXT}"]
+                f"  base_url: {ollama_url.rstrip('/')}/v1", f"  context_length: {OLLAMA_CONTEXT}",
+                f"  ollama_num_ctx: {OLLAMA_CONTEXT}"]
     return ["model:", f"  default: {model}", f"  provider: {kind}"]
 
 

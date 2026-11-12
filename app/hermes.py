@@ -121,8 +121,10 @@ def translate_hermes_event(event: str, payload: dict[str, Any]) -> dict[str, Any
             return {"type": "progress", "label": tool_label(item.get("name"))}
         return None
     if etype in ("response.failed", "error"):
-        err = payload.get("error") or payload
-        return {"type": "error", "message": str(err.get("message", err))}
+        # the reason may be at the top or inside "response" (Responses API)
+        err = payload.get("error") or (payload.get("response") or {}).get("error") or payload
+        msg = err.get("message") if isinstance(err, dict) else None
+        return {"type": "error", "message": str(msg or err)}
     # Hermes run/tool progress events
     if etype in ("hermes.tool.progress", "tool.started"):
         return {"type": "progress", "label": tool_label(payload.get("tool") or payload.get("name"))}

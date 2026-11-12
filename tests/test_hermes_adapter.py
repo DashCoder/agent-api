@@ -93,3 +93,10 @@ def test_status_and_skills():
     status = asyncio.run(agent.status())
     assert status["reachable"] and status["models"] == ["hermes-agent"]
     assert asyncio.run(agent.skills()) == [{"name": "book", "description": "Books"}]
+
+
+def test_failed_response_shows_the_readable_reason():
+    from app.hermes import translate_hermes_event
+    ev = translate_hermes_event("response.failed", {"type": "response.failed", "response": {
+        "status": "failed", "error": {"code": "agent_error", "message": "Ollama loaded qwen3:14b with only 40,960 tokens"}}})
+    assert ev == {"type": "error", "message": "Ollama loaded qwen3:14b with only 40,960 tokens"}
