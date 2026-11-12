@@ -11,6 +11,7 @@ Hermes config (~/.hermes/config.yaml):
 from __future__ import annotations
 
 import hmac
+import time
 import json
 from typing import Any
 
@@ -33,13 +34,44 @@ async def _call(request: Request, name: str, args: dict[str, Any]) -> dict[str, 
     plugin_name, tool = entry
     ctx = ToolContext(request=request, db=request.app.state.db, settings=request.app.state.settings,
                       plugin_settings=request.app.state.plugin_settings.get(plugin_name))
+    started = time.monotonic()
+    err = None
     try:
         out = _text(await tool.handler(ctx, args))
     except Exception as exc:  # report failures to the agent instead of breaking its session
-        out = _text({"error": getattr(exc, "detail", None) or str(exc)}, True)
-    # Every tool call is logged with its plugin, so Agent logs and Usage can show each agent's activity.
-    request.app.state.db.audit("hermes", "mcp.call", name, plugin=plugin_name, error=bool(out["isError"]))
+        err = str(getattr(exc, "detail", None) or exc)
+        out = _text({"error": err}, True)
+    # Every tool call is logged with its plugin, how long it took, what it was about (never file contents or
+    # secrets) and why it failed, so Agent logs can show what the agent did step by step.
+    detail: dict[str, Any] = {"plugin": plugin_name, "error": bool(out["isError"]),
+                              "ms": round((time.monotonic() - started) * 1000)}
+    about = summarize_args(args)
+    if about:
+        detail["args"] = about
+    if err:
+        detail["reason"] = err[:300]
+    request.app.state.db.audit("hermes", "mcp.call", name, **detail)
     return out
+
+
+SUMMARY_KEYS = ("ticket_key", "repo", "repos", "path", "path_prefix", "job_id", "status", "jql", "limit", "title", "view")
+
+
+def summarize_args(args: dict[str, Any]) -> str:
+    """A short, safe description of a tool call's arguments for the log: identifiers only, no contents."""
+    parts = []
+    for k in SUMMARY_KEYS:
+        v = args.get(k)
+        if v in (None, "", []):
+            continue
+        if isinstance(v, list):
+            v = ", ".join(str(x) for x in v[:5]) + (" …" if len(v) > 5 else "")
+        parts.append(f"{k}={str(v)[:80]}")
+    for k in ("files", "changes"):
+        v = args.get(k)
+        if isinstance(v, (list, dict)) and v:
+            parts.append(f"{k}: {len(v)}")
+    return " · ".join(parts)[:300]
 
 
 async def _handle(request: Request, msg: dict[str, Any]) -> dict[str, Any] | None:

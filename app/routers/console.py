@@ -46,7 +46,7 @@ def belongs(event: dict[str, Any], agent: str, prefixes: list[str], all_prefixes
     detail = event["detail"] if isinstance(event["detail"], dict) else json.loads(event["detail"] or "{}")
     if agent == "all":
         return True
-    if action == "mcp.call":
+    if action in ("mcp.call", "llm.call", "models.set"):   # tagged with the agent they belong to
         return detail.get("plugin") == agent
     if agent == ASSISTANT:  # everything no plugin claims: logins, settings, the chat assistant
         return not any(action.startswith(x) for x in all_prefixes)
@@ -128,7 +128,7 @@ def _month_start(t: float) -> float:
 
 
 def _counts(request: Request, db: DB, agent: str, since: float, until: float) -> dict[str, int]:
-    out = {"messages": 0, "conversations": 0, "actions": 0, "toolCalls": 0}
+    out: dict[str, Any] = {"messages": 0, "conversations": 0, "actions": 0, "toolCalls": 0, "modelCalls": 0, "cost": 0.0}
     if agent == ASSISTANT:
         out["messages"] = db.one("SELECT COUNT(*) AS n FROM messages WHERE role = 'user' AND created_at >= ? AND "
                                  "created_at < ?", (since, until))["n"]
@@ -137,13 +137,18 @@ def _counts(request: Request, db: DB, agent: str, since: float, until: float) ->
             "created_at < ?", (since, until))["n"]
     events = [e for e in agent_events(request, db, agent, 100000, since) if e["ts"] < until]
     out["toolCalls"] = sum(1 for e in events if e["action"] == "mcp.call")
-    out["actions"] = len(events) - out["toolCalls"]
+    calls = [e for e in events if e["action"] == "llm.call"]
+    out["modelCalls"] = len(calls)
+    out["cost"] = round(sum(float((e["detail"] or {}).get("cost") or 0) for e in calls
+                            if isinstance(e["detail"], dict)), 4)
+    out["actions"] = len(events) - out["toolCalls"] - out["modelCalls"]
     return out
 
 
 @router.get("/usage")
 def usage(request: Request, agent: str = "all", months: int = 6, db: DB = Depends(get_db)):
-    """Activity per agent today and this month, plus monthly history. Model costs are not tracked by agent-api."""
+    """Activity per agent today and this month, plus monthly history. Model cost = what providers reported for the
+    calls made through Model & tools (OpenRouter reports it; local models cost nothing; Bedrock reports tokens only)."""
     agent = _check_agent(request, agent)
     ids = agent_ids(request) if agent == "all" else [agent]
     now = time.time()
@@ -155,11 +160,14 @@ def usage(request: Request, agent: str = "all", months: int = 6, db: DB = Depend
     for _ in range(max(1, min(months, 24))):
         end = _month_start(start + 32 * 86400)  # first day of the next month
         row = {"month": dt.datetime.fromtimestamp(start).strftime("%Y-%m"), "messages": 0, "conversations": 0,
-               "actions": 0, "toolCalls": 0}
+               "actions": 0, "toolCalls": 0, "modelCalls": 0, "cost": 0.0}
         for a in ids:
             for k, v in _counts(request, db, a, start, min(end, now + 60)).items():
                 row[k] += v
         history.append(row)
         prev = dt.datetime.fromtimestamp(start) - dt.timedelta(days=1)
         start = dt.datetime(prev.year, prev.month, 1).timestamp()
-    return {"agents": agents, "history": history, "currentMonth": history[0]["month"], "costTracked": False}
+    for row in history:
+        row["cost"] = round(row["cost"], 4)
+    tracked = any(r["modelCalls"] for r in history)
+    return {"agents": agents, "history": history, "currentMonth": history[0]["month"], "costTracked": tracked}

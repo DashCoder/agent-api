@@ -21,6 +21,18 @@ class Settings(BaseSettings):
     hermes_timeout_s: float = 300.0
     # Where admins open the full Hermes dashboard (e.g. a Tailscale Serve URL).
     hermes_dashboard_url: str = ""
+    # How agent-api restarts Hermes after the admin changes its model on Model & tools.
+    hermes_restart_cmd: str = "~/.local/bin/hermes gateway restart"
+
+    # --- Models the agents can use (Model & tools; see app/llm.py) ---------------------------
+    ollama_url: str = "http://127.0.0.1:11434"
+    openrouter_api_key: str = ""
+    bedrock_access_key_id: str = ""
+    bedrock_secret_access_key: str = ""
+    lambda_access_key_id: str = ""        # fallback AWS keys, as in the dashboard
+    lambda_secret_access_key: str = ""
+    bedrock_region: str = "eu-west-1"
+    llm_timeout_s: float = 180.0
 
     # --- App -------------------------------------------------------------
     app_name: str = "Agent API"

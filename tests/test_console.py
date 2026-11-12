@@ -44,7 +44,7 @@ def test_activity_and_usage_per_agent(tmp_path):
     by = {a["id"]: a for a in u["agents"]}
     assert set(by) == {"assistant", "demo"} and u["costTracked"] is False
     assert by["assistant"]["today"]["messages"] == 1 and by["assistant"]["today"]["conversations"] == 1
-    assert by["demo"]["today"] == {"messages": 0, "conversations": 0, "actions": 1, "toolCalls": 1}
+    assert by["demo"]["today"] == {"messages": 0, "conversations": 0, "actions": 1, "toolCalls": 1, "modelCalls": 0, "cost": 0.0}
     assert u["history"][0]["toolCalls"] == 1 and len(u["history"]) == 6
     one = c.get("/api/admin/usage?agent=demo").json()
     assert [a["id"] for a in one["agents"]] == ["demo"] and one["history"][0]["messages"] == 0
@@ -53,3 +53,13 @@ def test_activity_and_usage_per_agent(tmp_path):
 def test_console_name_setting(tmp_path):
     c = make(tmp_path, [])
     assert c.get("/api/config").json()["brand"]["consoleName"] == "InAgentic Command"
+
+
+def test_tool_calls_are_logged_with_timing_and_what_they_were_about(tmp_path):
+    from app.routers.mcp import summarize_args
+    c = make(tmp_path, [plugin])
+    login(c)
+    rpc(c, "tools/call", {"name": "add_note", "arguments": {"text": "secret text", "title": "Hi"}})
+    e = next(x for x in c.get("/api/admin/activity?agent=demo").json()["items"] if x["action"] == "mcp.call")
+    assert e["detail"]["ms"] >= 0 and e["detail"]["args"] == "title=Hi" and "secret" not in str(e)
+    assert summarize_args({"repos": ["a/b", "c/d"], "files": {"a/b": ["x"]}, "content": "no"}) == "repos=a/b, c/d · files: 1"

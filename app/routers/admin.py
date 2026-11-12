@@ -119,7 +119,7 @@ async def hermes_status(request: Request, s: Settings = Depends(get_settings)):
     agent = get_agent(request)
     return {"status": await agent.status(), "skills": await agent.skills(),
             "dashboardUrl": s.hermes_dashboard_url or None, "mode": s.hermes_mode,
-            "configured": hermes_model(s.hermes_home)}
+            "configured": hermes_model(s.hermes_home)}  # see also /api/admin/models
 
 
 @router.get("/audit")
