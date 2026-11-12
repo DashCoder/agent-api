@@ -192,3 +192,22 @@ def test_files_only_served_from_allowed_folders(tmp_path):
     for bad in (str(secret), str(allowed / "link.env"), str(allowed / ".." / "secret.env"), "/etc/passwd",
                 str(allowed / "missing.png")):
         assert c.get("/api/files", params={"path": bad}).status_code == 404
+
+
+def test_remove_a_question_and_its_answer(tmp_path):
+    from fastapi.testclient import TestClient
+    from app.config import Settings
+    from app.main import create_app
+    c = TestClient(create_app(Settings(hermes_mode="mock", data_dir=tmp_path, admin_password="x", mock_delay_s=0,
+                                       secret_key="t", _env_file=None), plugins=[]))
+    sid = c.post("/api/chat/sessions").json()["id"]
+    c.post(f"/api/chat/sessions/{sid}/stream", json={"text": "What are your rates?", "learn": False})
+    c.post(f"/api/chat/sessions/{sid}/stream", json={"text": "Do you cover Leeds?", "learn": False})
+    msgs = c.get(f"/api/chat/sessions/{sid}/messages").json()["messages"]
+    q1 = next(m for m in msgs if m["text"] == "What are your rates?")
+    assert len(c.delete(f"/api/chat/sessions/{sid}/messages/{q1['id']}").json()["removed"]) == 2
+    left = [m["text"] for m in c.get(f"/api/chat/sessions/{sid}/messages").json()["messages"]]
+    assert "What are your rates?" not in left and "Do you cover Leeds?" in left
+    assert c.delete(f"/api/chat/sessions/{sid}/messages/nope").status_code == 404
+    other = TestClient(c.app)   # another visitor (no cookie) can't touch it
+    assert other.delete(f"/api/chat/sessions/{sid}/messages/{msgs[0]['id']}").status_code == 404

@@ -1,6 +1,6 @@
 # agent-api
 
-Open-source Python backend (FastAPI) that connects a simple chat and admin UI ([agent-ui](https://github.com/YOUR-ORG/agent-ui))
+Open-source Python backend (FastAPI) that connects a simple chat and admin UI ([agent-ui](https://github.com/DashCoder/agent-ui))
 to **[Hermes Agent](https://hermes-agent.nousresearch.com)**. It keeps Hermes and its API key off the internet
 and gives visitors and admins only what they need.
 

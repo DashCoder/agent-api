@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     # --- Plugins ------------------------------------------------------------------
     plugins: str = ""   # comma-separated plugin names (or module:attr) to switch on; see app/plugins.py
     mcp_key: str = ""   # Hermes sends this as a Bearer token to /api/mcp; empty = MCP endpoint off
+    # The Plugins page: where update.sh installs, which git sources plugins may come from (comma-separated
+    # "host/owner" or "host" prefixes, e.g. github.com/DashCoder), and the token for private repos.
+    apps_dir: Path = Path("~/apps")
+    plugin_sources: str = "github.com/DashCoder"
+    plugin_token_file: Path = Path("~/.config/inagentic/github-token")
 
     # --- Dev helpers ---------------------------------------------------------
     # Return the "Save my work" verification code in the API response instead of emailing it.

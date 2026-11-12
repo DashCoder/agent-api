@@ -15,7 +15,7 @@ from .config import Settings, get_settings
 from .db import DB
 from .hermes import make_agent
 from .plugins import Plugin, install_plugins, resolve_plugins
-from .routers import admin, chat, files, mcp, public, simli, tts, user
+from .routers import admin, chat, console, files, mcp, plugins_admin, public, simli, tts, user
 
 
 def create_app(settings: Settings | None = None, plugins: list[Plugin] | None = None) -> FastAPI:
@@ -36,7 +36,8 @@ def create_app(settings: Settings | None = None, plugins: list[Plugin] | None = 
     app.add_middleware(CORSMiddleware, allow_origins=s.cors_origin_list, allow_credentials=True,
                        allow_methods=["*"], allow_headers=["*"])
 
-    for r in (public.router, chat.router, user.router, admin.router, tts.router, simli.router, files.router, mcp.router):
+    for r in (public.router, chat.router, user.router, admin.router, console.router, tts.router, simli.router,
+              files.router, mcp.router, plugins_admin.router):
         app.include_router(r)
     install_plugins(app, plugins if plugins is not None else resolve_plugins(s.plugins))
     return app

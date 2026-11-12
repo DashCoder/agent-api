@@ -50,6 +50,23 @@ def _sse(event: dict) -> str:
     return f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
 
 
+@router.delete("/sessions/{session_id}/messages/{message_id}")
+def remove_message(session_id: str, message_id: str, request: Request, db: DB = Depends(get_db)):
+    """Remove a question and its answer from the visitor's view (removing an answer removes just that answer).
+    The agent may still remember the conversation; "Clear chat" starts a new one."""
+    _own_session(db, session_id, owner_key(request))
+    rows = db.all("SELECT * FROM messages WHERE session_id = ? ORDER BY created_at", (session_id,))
+    i = next((n for n, m in enumerate(rows) if m["id"] == message_id), None)
+    if i is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    gone = [rows[i]["id"]]
+    if rows[i]["role"] == "user" and i + 1 < len(rows) and rows[i + 1]["role"] == "assistant":
+        gone.append(rows[i + 1]["id"])
+    for mid in gone:
+        db.execute("DELETE FROM messages WHERE id = ?", (mid,))
+    return {"removed": gone}
+
+
 @router.post("/sessions/{session_id}/stream")
 async def stream_reply(session_id: str, body: SendBody, request: Request, db: DB = Depends(get_db)):
     owner = owner_key(request)
@@ -63,7 +80,9 @@ async def stream_reply(session_id: str, body: SendBody, request: Request, db: DB
         if names:
             text += "\n\n[Attached files: " + ", ".join(names) + "]"
     user_msg = db.add_message(session_id, "user", text)
-    context = {"business": get_site(db).get("business", {})}
+    site = get_site(db)
+    context = {"assistant": site.get("assistant", {}), "business": site.get("business", {}),
+               "agentHints": [p.public_info.get("assistantHint", "") for p in request.app.state.plugins.values()]}
 
     async def gen():
         yield _sse({"type": "start", "userMessage": user_msg})

@@ -539,7 +539,7 @@ curl -sN http://127.0.0.1:8642/v1/responses -H &quot;Authorization: Bearer $KEY&
 <h2 id="10-install-agent-api">10. Install agent-api</h2>
 <p class="runas runas--agents">Run as aiagents</p>
 <pre><code class="language-bash">mkdir -p ~/apps &amp;&amp; cd ~/apps
-git clone https://github.com/YOUR-ORG/agent-api.git &amp;&amp; cd agent-api
+git clone https://github.com/DashCoder/agent-api.git &amp;&amp; cd agent-api
 /opt/homebrew/bin/python3.12 -m venv .venv
 .venv/bin/pip install -e .
 cp .env.example .env &amp;&amp; chmod 600 .env
@@ -569,7 +569,7 @@ kill %1
 <h2 id="11-build-agent-ui">11. Build agent-ui</h2>
 <p class="runas runas--agents">Run as aiagents</p>
 <pre><code class="language-bash">cd ~/apps
-git clone https://github.com/YOUR-ORG/agent-ui.git &amp;&amp; cd agent-ui
+git clone https://github.com/DashCoder/agent-ui.git &amp;&amp; cd agent-ui
 npm ci &amp;&amp; npm run build            # creates dist/
 </code></pre>
 <p><strong class="why">Why</strong> the UI is just static files once built, which Caddy serves. No Node process needs to run in production.</p>

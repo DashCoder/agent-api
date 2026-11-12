@@ -414,7 +414,7 @@ The dashboard **has no login**, which is why it only ever listens on localhost a
 
 ```bash
 mkdir -p ~/apps && cd ~/apps
-git clone https://github.com/YOUR-ORG/agent-api.git && cd agent-api
+git clone https://github.com/DashCoder/agent-api.git && cd agent-api
 /opt/homebrew/bin/python3.12 -m venv .venv
 .venv/bin/pip install -e .
 cp .env.example .env && chmod 600 .env
@@ -455,7 +455,7 @@ kill %1
 
 ```bash
 cd ~/apps
-git clone https://github.com/YOUR-ORG/agent-ui.git && cd agent-ui
+git clone https://github.com/DashCoder/agent-ui.git && cd agent-ui
 npm ci && npm run build            # creates dist/
 ```
 

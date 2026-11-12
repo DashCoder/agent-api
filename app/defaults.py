@@ -5,6 +5,8 @@ DEFAULT_SITE = {
         "name": "Agent UI",
         "adminTitle": "builder.example.com",
         "landingUrl": "/",
+        # Product name in the admin's top bar, next to adminTitle (the host name).
+        "consoleName": "InAgentic Command",
     },
     "assistant": {
         "name": "Builder",

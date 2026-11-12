@@ -44,6 +44,36 @@ NO_LEARN_INSTRUCTIONS = (
 )
 
 
+STYLE = (
+    "How to write replies: plain, friendly English for someone who isn't technical. Short paragraphs or a short "
+    "list. Never show internal tool or function names (anything like mcp__inagentic__get_jira_ticket, "
+    "list_repo_files or snake_case names): describe what you can do in everyday words instead, e.g. \"read a Jira "
+    "ticket\". Don't use code formatting unless you are showing actual code or a command."
+)
+
+
+def build_instructions(context: dict[str, Any], learn: bool) -> str:
+    """What Hermes is told on every turn: who it is on this site, the answers the admin set on the Agent page, what
+    the installed agents add, and how to write. Without this, Hermes answers "What services do you offer?" with
+    its own tool list instead of the business's services."""
+    a = context.get("assistant") or {}
+    biz = {k: v for k, v in (context.get("business") or {}).items() if isinstance(v, str) and v.strip()}
+    parts = [f"You are {a.get('name') or 'the assistant'}, the assistant people talk to on this site."]
+    labels = {"services": "Services (use this when asked what you do or offer)",
+              "booking": "Booking (use this when asked how to book)",
+              "rates": "Rates and prices", "areas": "Areas covered"}
+    if biz:
+        parts.append("Answers set by the admin. Use them, in your own words, when the question matches:\n" +
+                     "\n".join(f"- {labels.get(k, k.title())}: {v.strip()}" for k, v in biz.items()))
+    hints = [h for h in context.get("agentHints") or [] if h]
+    if hints:
+        parts.append("What you can help with here:\n" + "\n".join(f"- {h}" for h in hints))
+    parts.append(STYLE)
+    if not learn:
+        parts.append(NO_LEARN_INSTRUCTIONS)
+    return "\n\n".join(parts)
+
+
 def tool_label(name: str | None) -> str:
     if not name:
         return "Working on it…"
@@ -119,10 +149,8 @@ class HermesAgent:
 
     async def stream(self, conversation: str, text: str, *, learn: bool,
                      context: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:
-        body: dict[str, Any] = {"model": self.s.hermes_model, "input": text,
-                                "conversation": conversation, "stream": True}
-        if not learn:
-            body["instructions"] = NO_LEARN_INSTRUCTIONS
+        body: dict[str, Any] = {"model": self.s.hermes_model, "input": text, "conversation": conversation,
+                                "stream": True, "instructions": build_instructions(context, learn)}
         try:
             async with self._client() as c:
                 async with c.stream("POST", "/v1/responses", json=body,

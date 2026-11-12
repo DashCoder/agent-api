@@ -47,15 +47,25 @@ def test_stream_translates_events_and_sends_conversation():
     assert "instructions" in seen["body"]  # learn=False adds the no-learning instruction
 
 
-def test_learn_mode_sends_no_instructions():
+def test_instructions_carry_the_agent_page_answers_and_style():
+    from app.hermes import build_instructions
+    ctx = {"assistant": {"name": "Builder"}, "business": {"services": "List last 5 Jira tickets", "rates": " "},
+           "agentHints": ["Turn Jira tickets into pull requests"]}
+    learn = build_instructions(ctx, True)
+    assert "You are Builder" in learn and "List last 5 Jira tickets" in learn and "Rates" not in learn
+    assert "Turn Jira tickets into pull requests" in learn and "mcp__inagentic__" in learn  # told not to show these
+    assert "do not write to long-term memory" not in learn
+    assert "do not write to long-term memory" in build_instructions(ctx, False)
     seen = {}
 
     def handler(req):
         seen["body"] = json.loads(req.content)
         return httpx.Response(200, text=SSE)
 
-    collect(make(handler), learn=True)
-    assert "instructions" not in seen["body"]
+    async def run():
+        return [e async for e in make(handler).stream("c", "hi", learn=True, context=ctx)]
+    asyncio.run(run())
+    assert seen["body"]["instructions"] == learn
 
 
 def test_http_error_becomes_error_event():

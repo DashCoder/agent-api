@@ -34,9 +34,12 @@ async def _call(request: Request, name: str, args: dict[str, Any]) -> dict[str, 
     ctx = ToolContext(request=request, db=request.app.state.db, settings=request.app.state.settings,
                       plugin_settings=request.app.state.plugin_settings.get(plugin_name))
     try:
-        return _text(await tool.handler(ctx, args))
+        out = _text(await tool.handler(ctx, args))
     except Exception as exc:  # report failures to the agent instead of breaking its session
-        return _text({"error": getattr(exc, "detail", None) or str(exc)}, True)
+        out = _text({"error": getattr(exc, "detail", None) or str(exc)}, True)
+    # Every tool call is logged with its plugin, so Agent logs and Usage can show each agent's activity.
+    request.app.state.db.audit("hermes", "mcp.call", name, plugin=plugin_name, error=bool(out["isError"]))
+    return out
 
 
 async def _handle(request: Request, msg: dict[str, Any]) -> dict[str, Any] | None:
