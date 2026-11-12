@@ -242,3 +242,5 @@ def test_chat_as_one_agent(tmp_path):
     text = build_instructions({"assistant": {"name": "Dex"}, "focus": {"id": "demo", "name": "Dex", "hint": "Keep demo notes."},
                                "agentHints": ["Keep demo notes."]}, True)
     assert text.startswith("You are Dex. The person opened Dex's chat") and "show that table as it is" in text
+    t2 = build_instructions({"assistant": {}, "focus": {"id": "demo", "name": "Dex", "hint": "", "tools": ["add_note"]}}, True)
+    assert "Dex's tools (in the inagentic MCP server): add_note" in t2 and "never ask the person to connect" in t2

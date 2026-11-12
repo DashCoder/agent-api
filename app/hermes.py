@@ -65,6 +65,11 @@ def build_instructions(context: dict[str, Any], learn: bool) -> str:
     if focus:
         parts = [f"You are {focus['name']}. The person opened {focus['name']}'s chat, so answer as {focus['name']} and use "
                  f"{focus['name']}'s tools first."]
+        if focus.get("tools"):
+            parts.append(f"{focus['name']}'s tools (in the inagentic MCP server): {', '.join(focus['tools'])}. For anything "
+                         "they cover, use them, not another tool or connector for the same job (e.g. for email, use these "
+                         "rather than a separate Gmail connector), and never ask the person to connect an account that "
+                         f"{focus['name']} already uses.")
     labels = {"services": "Services (use this when asked what you do or offer)",
               "booking": "Booking (use this when asked how to book)",
               "rates": "Rates and prices", "areas": "Areas covered"}

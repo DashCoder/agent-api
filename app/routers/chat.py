@@ -30,8 +30,9 @@ def agent_of(request: Request, agent: str | None) -> dict | None:
     p = request.app.state.plugins.get(agent or "")
     if not p:
         return None
+    tools = sorted(n for n, (owner, _) in request.app.state.mcp_tools.items() if owner == p.name)
     return {"id": p.name, "name": p.public_info.get("agentName") or p.name.title(),
-            "hint": p.public_info.get("assistantHint", "")}
+            "hint": p.public_info.get("assistantHint", ""), "tools": tools}
 
 
 class SessionBody(BaseModel):
