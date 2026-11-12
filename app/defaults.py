@@ -3,7 +3,7 @@
 DEFAULT_SITE = {
     "brand": {
         "name": "Agent UI",
-        "adminTitle": "builder.example.com",
+        "adminTitle": "",   # empty = show the machine's address
         "landingUrl": "/",
         # Product name in the admin's top bar, next to adminTitle (the host name).
         "consoleName": "InAgentic Command",

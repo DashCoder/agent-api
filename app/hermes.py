@@ -48,7 +48,9 @@ STYLE = (
     "How to write replies: plain, friendly English for someone who isn't technical. Short paragraphs or a short "
     "list. Never show internal tool or function names (anything like mcp__inagentic__get_jira_ticket, "
     "list_repo_files or snake_case names): describe what you can do in everyday words instead, e.g. \"read a Jira "
-    "ticket\". Don't use code formatting unless you are showing actual code or a command."
+    "ticket\". Don't use code formatting unless you are showing actual code or a command. When a tool gives you a "
+    "Markdown table (for example a KPI scorecard), show that table as it is, with its rows, columns and status "
+    "symbols; don't turn it into a list."
 )
 
 
@@ -59,6 +61,10 @@ def build_instructions(context: dict[str, Any], learn: bool) -> str:
     a = context.get("assistant") or {}
     biz = {k: v for k, v in (context.get("business") or {}).items() if isinstance(v, str) and v.strip()}
     parts = [f"You are {a.get('name') or 'the assistant'}, the assistant people talk to on this site."]
+    focus = context.get("focus")
+    if focus:
+        parts = [f"You are {focus['name']}. The person opened {focus['name']}'s chat, so answer as {focus['name']} and use "
+                 f"{focus['name']}'s tools first."]
     labels = {"services": "Services (use this when asked what you do or offer)",
               "booking": "Booking (use this when asked how to book)",
               "rates": "Rates and prices", "areas": "Areas covered"}

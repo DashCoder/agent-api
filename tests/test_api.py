@@ -221,3 +221,24 @@ def test_model_from_hermes_config(tmp_path):
     (tmp_path / "config.yaml").write_text("model: qwen3:14b\n")
     assert hermes_model(tmp_path) == {"model": "qwen3:14b"}
     assert hermes_model(tmp_path / "missing") is None
+
+
+def test_chat_as_one_agent(tmp_path):
+    """/?agent=demo: the greeting and Hermes' instructions are that agent's."""
+    from fastapi.testclient import TestClient
+    from app.config import Settings
+    from app.main import create_app
+    from app.hermes import build_instructions
+    from tests.test_plugins import plugin
+    import dataclasses
+    p = dataclasses.replace(plugin, public_info={**plugin.public_info, "agentName": "Dex", "assistantHint": "Keep demo notes."})
+    c = TestClient(create_app(Settings(hermes_mode="mock", data_dir=tmp_path, admin_password="x", mock_delay_s=0,
+                                       secret_key="t", _env_file=None), plugins=[p]))
+    s = c.post("/api/chat/sessions", json={"agent": "demo"}).json()
+    assert s["messages"][0]["text"] == "Hi! I'm Dex 👋 I keep demo notes. What would you like to do?"
+    plain = c.post("/api/chat/sessions").json()
+    assert plain["messages"][0]["text"].startswith("Hi! I'm Builder")
+    assert c.post("/api/chat/sessions", json={"agent": "nobody"}).json()["messages"][0]["text"].startswith("Hi! I'm Builder")
+    text = build_instructions({"assistant": {"name": "Dex"}, "focus": {"id": "demo", "name": "Dex", "hint": "Keep demo notes."},
+                               "agentHints": ["Keep demo notes."]}, True)
+    assert text.startswith("You are Dex. The person opened Dex's chat") and "show that table as it is" in text

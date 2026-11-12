@@ -25,11 +25,29 @@ def _own_session(db: DB, session_id: str, owner: str) -> dict:
     return row
 
 
+def agent_of(request: Request, agent: str | None) -> dict | None:
+    """An installed agent the visitor chat can talk as (?agent=kpi): its name and what it does."""
+    p = request.app.state.plugins.get(agent or "")
+    if not p:
+        return None
+    return {"id": p.name, "name": p.public_info.get("agentName") or p.name.title(),
+            "hint": p.public_info.get("assistantHint", "")}
+
+
+class SessionBody(BaseModel):
+    agent: str | None = Field(default=None, max_length=40)
+
+
 @router.post("/sessions")
-def create_session(request: Request, db: DB = Depends(get_db)):
+def create_session(request: Request, body: SessionBody | None = None, db: DB = Depends(get_db)):
     sid = new_id()
     db.execute("INSERT INTO sessions(id, owner, created_at) VALUES(?,?,?)", (sid, owner_key(request), time.time()))
-    greeting = get_site(db)["assistant"]["greeting"]
+    a = agent_of(request, body.agent if body else None)
+    if a:
+        greeting = f"Hi! I'm {a['name']} 👋" + (f" I {a['hint'][0].lower()}{a['hint'][1:]}" if a["hint"] else "") + \
+                   " What would you like to do?"
+    else:
+        greeting = get_site(db)["assistant"]["greeting"]
     msg = db.add_message(sid, "assistant", greeting)
     return {"id": sid, "messages": [msg]}
 
@@ -44,6 +62,7 @@ class SendBody(BaseModel):
     text: str = Field(min_length=1, max_length=8000)
     learn: bool = False
     attachments: list[str] = []
+    agent: str | None = Field(default=None, max_length=40)   # talking to one agent (?agent=kpi)
 
 
 def _sse(event: dict) -> str:
@@ -83,6 +102,11 @@ async def stream_reply(session_id: str, body: SendBody, request: Request, db: DB
     site = get_site(db)
     context = {"assistant": site.get("assistant", {}), "business": site.get("business", {}),
                "agentHints": [p.public_info.get("assistantHint", "") for p in request.app.state.plugins.values()]}
+    focus = agent_of(request, body.agent)
+    if focus:  # the visitor opened this agent's chat: answer as it, with its tools
+        context["assistant"] = {**context["assistant"], "name": focus["name"]}
+        context["agentHints"] = [focus["hint"]]
+        context["focus"] = focus
 
     async def gen():
         yield _sse({"type": "start", "userMessage": user_msg})
