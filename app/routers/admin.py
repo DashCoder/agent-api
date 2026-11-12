@@ -1,7 +1,9 @@
 """Admin API: dashboard, site settings, knowledge sources and Hermes status."""
 from __future__ import annotations
 
+import os
 import time
+from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request
@@ -85,11 +87,39 @@ def delete_knowledge(item_id: str, db: DB = Depends(get_db)):
     return {"ok": True}
 
 
+def hermes_model(home: Path) -> dict[str, str] | None:
+    """The model and provider in Hermes' config.yaml ("hermes-agent" is only the name of Hermes' API). Reads just
+    those keys, never anything secret."""
+    import re
+    f = Path(os.path.expanduser(str(home))) / "config.yaml"
+    try:
+        lines = f.read_text().splitlines()
+    except OSError:
+        return None
+    out: dict[str, str] = {}
+    for i, line in enumerate(lines):
+        m = re.match(r"^model:\s*(\S.*)?$", line)
+        if not m:
+            continue
+        if m.group(1) and not m.group(1).startswith("#"):
+            out["model"] = m.group(1).strip().strip("'\"")
+        for sub in lines[i + 1:]:
+            if sub and not sub[0].isspace():
+                break
+            k = re.match(r"^\s+(default|name|model|provider|base_url)\s*:\s*(\S[^#]*)", sub)
+            if k:
+                out.setdefault("provider" if k.group(1) == "provider" else
+                               "baseUrl" if k.group(1) == "base_url" else "model", k.group(2).strip().strip("'\""))
+        break
+    return out or None
+
+
 @router.get("/hermes")
 async def hermes_status(request: Request, s: Settings = Depends(get_settings)):
     agent = get_agent(request)
     return {"status": await agent.status(), "skills": await agent.skills(),
-            "dashboardUrl": s.hermes_dashboard_url or None, "mode": s.hermes_mode}
+            "dashboardUrl": s.hermes_dashboard_url or None, "mode": s.hermes_mode,
+            "configured": hermes_model(s.hermes_home)}
 
 
 @router.get("/audit")

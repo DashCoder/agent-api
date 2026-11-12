@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     hermes_api_url: str = "http://127.0.0.1:8642"
     hermes_api_key: str = ""
     hermes_model: str = "hermes-agent"
+    hermes_home: Path = Path("~/.hermes")   # read for the model Hermes is set to use (shown on Model & tools)
     hermes_timeout_s: float = 300.0
     # Where admins open the full Hermes dashboard (e.g. a Tailscale Serve URL).
     hermes_dashboard_url: str = ""

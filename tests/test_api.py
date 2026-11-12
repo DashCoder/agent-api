@@ -211,3 +211,13 @@ def test_remove_a_question_and_its_answer(tmp_path):
     assert c.delete(f"/api/chat/sessions/{sid}/messages/nope").status_code == 404
     other = TestClient(c.app)   # another visitor (no cookie) can't touch it
     assert other.delete(f"/api/chat/sessions/{sid}/messages/{msgs[0]['id']}").status_code == 404
+
+
+def test_model_from_hermes_config(tmp_path):
+    from app.routers.admin import hermes_model
+    (tmp_path / "config.yaml").write_text("toolsets:\n  - web\nmodel:\n  default: anthropic/claude-sonnet-4.5\n"
+                                          "  provider: openrouter   # via OpenRouter\n  api_key: sk-secret\nterminal:\n  backend: local\n")
+    assert hermes_model(tmp_path) == {"model": "anthropic/claude-sonnet-4.5", "provider": "openrouter"}
+    (tmp_path / "config.yaml").write_text("model: qwen3:14b\n")
+    assert hermes_model(tmp_path) == {"model": "qwen3:14b"}
+    assert hermes_model(tmp_path / "missing") is None
