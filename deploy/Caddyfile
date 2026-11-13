@@ -4,13 +4,17 @@
 	admin off
 }
 
-http://127.0.0.1:8080 {
+http://127.0.0.1:8080, http://*.localhost:8080 {
 	encode zstd gzip
 
-	# live previews of the coding agent's next version (e.g. /v110/): served by agent-api, admins only
-	@preview path_regexp ^/v[0-9]{1,6}(-[a-z0-9]{1,24}){0,2}(/|$)
+	# live previews from the coding agent, each on its own address: http://<project>-<ticket>.localhost:8088
+	# (browsers send *.localhost to your own computer, so the SSH tunnel carries it). agent-api serves them.
+	@preview host *.localhost
 	handle @preview {
-		reverse_proxy 127.0.0.1:8000
+		rewrite * /__preview/{http.request.host.labels.1}{uri}
+		reverse_proxy 127.0.0.1:8000 {
+			flush_interval -1
+		}
 	}
 
 	handle /api/* {
