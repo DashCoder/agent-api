@@ -27,6 +27,10 @@ DEFAULT_SITE = {
         # Live lip-synced avatar from Simli (needs SIMLI_API_KEY in .env). Visitors can switch it on.
         "simliEnabled": False,
         "simliFaceId": "",
+        # Trinity-2 faces stream in this shape: square (768×768), portrait (576×1024) or landscape (1024×576)
+        "simliFormat": "square",
+        # An agent's own face, e.g. {"builder": "<face id>"}; agents without one use simliFaceId
+        "simliFaces": {},
     },
     "quickReplies": [
         "What services do you offer?",

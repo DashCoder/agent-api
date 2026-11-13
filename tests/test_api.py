@@ -1,6 +1,8 @@
 import json
 
 import pytest
+import json
+
 from fastapi.testclient import TestClient
 
 from app.auth import hash_password, verify_password
@@ -156,7 +158,7 @@ def test_simli_token_cooldown_and_daily_cap(tmp_path, monkeypatch):
     app = create_app(s)
     calls = []
 
-    async def fake_token(settings, face_id):
+    async def fake_token(settings, face_id, transport=None, fmt="square"):
         calls.append(face_id)
         return "tok-123"
 
@@ -244,6 +246,10 @@ def test_chat_as_one_agent(tmp_path):
     assert text.startswith("You are Dex. The person opened Dex's chat") and "show that table as it is" in text
     t2 = build_instructions({"assistant": {}, "focus": {"id": "demo", "name": "Dex", "hint": "", "tools": ["add_note"]}}, True)
     assert "Dex's tools (in the inagentic MCP server): add_note" in t2 and "never ask the person to connect" in t2
+    assert "manage_connections" in t2
+    t3 = build_instructions({"assistant": {}, "focus": {"id": "demo", "name": "Dex", "tools": ["add_note"],
+                                                        "rules": "Jira is already connected for you."}}, True)
+    assert "How Dex's tools work: Jira is already connected for you." in t3
 
 
 def test_simli_refusals_say_what_to_fix():
@@ -263,3 +269,39 @@ def test_simli_refusals_say_what_to_fix():
         assert "didn't accept the API key" in e.detail and "SIMLI_API_KEY" in e.detail
     assert seen["key"] == "sk-abc"
     assert "another Simli account" in simli_mod.refusal(403, "")
+
+
+def test_simli_each_agent_can_have_its_own_trinity2_face(tmp_path, monkeypatch):
+    import asyncio
+    import httpx
+    from app.routers import simli as simli_mod
+    s = Settings(hermes_mode="mock", data_dir=tmp_path, admin_password="secret", mock_delay_s=0,
+                 secret_key="test", simli_api_key="sk", _env_file=None)
+    calls = []
+
+    async def fake_token(settings, face_id, transport=None, fmt="square"):
+        calls.append((face_id, fmt))
+        return "tok"
+    monkeypatch.setattr(simli_mod, "request_token", fake_token)
+    simli_mod._last_request.clear()
+    c = TestClient(create_app(s))
+    c.post("/api/auth/login", json={"username": "admin", "password": "secret"})
+    face = "1c318dfa-33e7-4f5d-9a3d-5c2e1636ca7c"
+    c.put("/api/admin/settings", json={"avatar": {"simliEnabled": True, "simliFormat": "portrait",
+                                                  "simliFaces": {"builder": face}}})
+    av = c.get("/api/config").json()["avatar"]
+    assert av["simliAvailable"] is False and av["simliAgents"] == ["builder"] and "simliFaces" not in av
+    assert c.post("/api/simli/token").status_code == 404                     # the site has no face of its own
+    assert c.post("/api/simli/token", json={"agent": "builder"}).status_code == 200
+    assert calls == [(face, "portrait")]
+
+    # the request Simli gets: v2 with Trinity-2 framing; warnings are logged, not fatal
+    monkeypatch.undo()
+    sent = {}
+
+    def route(req):
+        sent.update(json.loads(req.content))
+        return httpx.Response(200, json={"session_token": "t2", "warnings": ["background ignored"]})
+    tok = asyncio.run(simli_mod.request_token(s, face, httpx.MockTransport(route), "portrait"))
+    assert tok == "t2" and sent["faceId"] == face and sent["apiVersion"] == "v2"
+    assert (sent["streaming_width"], sent["streaming_height"]) == (576, 1024)

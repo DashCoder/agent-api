@@ -69,7 +69,10 @@ def build_instructions(context: dict[str, Any], learn: bool) -> str:
             parts.append(f"{focus['name']}'s tools (in the inagentic MCP server): {', '.join(focus['tools'])}. For anything "
                          "they cover, use them, not another tool or connector for the same job (e.g. for email, use these "
                          "rather than a separate Gmail connector), and never ask the person to connect an account that "
-                         f"{focus['name']} already uses.")
+                         f"{focus['name']} already uses. Don't call manage_connections or another connector for "
+                         "something these tools do: if one of them fails, say what the error was.")
+        if focus.get("rules"):
+            parts.append(f"How {focus['name']}'s tools work: {focus['rules']}")
     labels = {"services": "Services (use this when asked what you do or offer)",
               "booking": "Booking (use this when asked how to book)",
               "rates": "Rates and prices", "areas": "Areas covered"}

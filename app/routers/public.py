@@ -8,6 +8,7 @@ from ..auth import check_admin_credentials, current_user, owner_key
 from ..config import Settings, get_settings
 from ..db import DB
 from ..deps import get_agent, get_db, get_site
+from . import simli
 
 router = APIRouter(prefix="/api")
 
@@ -25,8 +26,11 @@ def public_config(request: Request, db: DB = Depends(get_db)):
     site = get_site(db)
     out = {k: site[k] for k in ("brand", "assistant", "avatar", "quickReplies")}
     s: Settings = request.app.state.settings
-    out["avatar"] = {**out["avatar"], "simliAvailable": bool(
-        s.simli_api_key and out["avatar"].get("simliEnabled") and out["avatar"].get("simliFaceId"))}
+    live = bool(s.simli_api_key and out["avatar"].get("simliEnabled"))
+    out["avatar"] = {**out["avatar"], "simliAvailable": live and bool(out["avatar"].get("simliFaceId")),
+                     # agents with their own face can go live even when the site has none
+                     "simliAgents": simli.agents_with_faces(out["avatar"]) if live else []}
+    out["avatar"].pop("simliFaces", None)       # face IDs stay on the server
     out["plugins"] = [{"name": p.name, "version": p.version, **p.public_info}
                       for p in request.app.state.plugins.values()]
     return out
