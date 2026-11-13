@@ -50,7 +50,7 @@ STYLE = (
     "list_repo_files or snake_case names): describe what you can do in everyday words instead, e.g. \"read a Jira "
     "ticket\". Don't use code formatting unless you are showing actual code or a command. When a tool gives you a "
     "Markdown table (for example a KPI scorecard), show that table as it is, with its rows, columns and status "
-    "symbols; don't turn it into a list."
+    "symbols; don't turn it into a list. Number list items 1, 2, 3 (never 1, 1, 1)."
 )
 
 
