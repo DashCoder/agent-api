@@ -88,7 +88,8 @@ def label(c: dict[str, str]) -> str:
 
 
 def record(app: FastAPI, agent: str, provider: str, model: str, ms: int, *, task: str = "", tokens_in: int | None = None,
-           tokens_out: int | None = None, cost: float | None = None, error: str | None = None) -> None:
+           tokens_out: int | None = None, cost: float | None = None, error: str | None = None,
+           blocked: str | None = None) -> None:
     """Log one model call (agents that call models their own way use this too)."""
     detail: dict[str, Any] = {"plugin": agent, "provider": provider, "model": model, "ms": ms}
     if task:
@@ -101,6 +102,8 @@ def record(app: FastAPI, agent: str, provider: str, model: str, ms: int, *, task
         detail["cost"] = round(cost, 5)
     if error:
         detail["error"] = error[:300]
+    if blocked:
+        detail["blocked"] = blocked[:300]
     app.state.db.audit(agent, "llm.call", model, **detail)
 
 
@@ -124,17 +127,17 @@ async def complete(app: FastAPI, agent: str, system: str, user: str, max_tokens:
         if c["provider"] == "bedrock":
             text, usage = await _bedrock(s, c["model"], system, user, max_tokens)
         else:
-            text, usage = await _openai_compatible(s, c, system, user, max_tokens, json_mode, transport)
+            text, usage = await _openai_compatible(s, c, system, user, max_tokens, json_mode, transport, agent)
     except Exception as e:
         record(app, agent, c["provider"], c["model"], round((time.monotonic() - started) * 1000), task=task,
-               error=f"{e.__class__.__name__}: {e}")
+               error=f"{e.__class__.__name__}: {e}", blocked=getattr(e, "blocked", None))
         raise LlmError(f"{label(c)}: {e}") from e
     record(app, agent, c["provider"], c["model"], round((time.monotonic() - started) * 1000), task=task, **usage)
     return text
 
 
 async def _openai_compatible(s, c: dict[str, str], system: str, user: str, max_tokens: int, json_mode: bool,
-                             transport) -> tuple[str, dict[str, Any]]:
+                             transport, agent: str = "") -> tuple[str, dict[str, Any]]:
     if c["provider"] == "ollama":
         base, headers = f"{s.ollama_url.rstrip('/')}/v1", {}
     else:
@@ -149,14 +152,35 @@ async def _openai_compatible(s, c: dict[str, str], system: str, user: str, max_t
         body["response_format"] = {"type": "json_object"}
     if c["provider"] == "openrouter":
         body["usage"] = {"include": True}
+        if agent:
+            body["user"] = f"inagentic:{agent}"     # OpenRouter's traces then say which agent made the call
     async with httpx.AsyncClient(timeout=s.llm_timeout_s, transport=transport) as cl:
         r = await cl.post(f"{base}/chat/completions", json=body, headers=headers)
     if r.status_code >= 400:
-        raise LlmError(f"{r.status_code}: {r.text[:300]}")
+        err = LlmError(f"{r.status_code}: {r.text[:300]}")
+        err.blocked = blocked_by(r)
+        raise err
     data = r.json()
-    text = re.sub(r"<think>[\s\S]*?</think>", "", data["choices"][0]["message"].get("content") or "").strip()
+    choice0 = data["choices"][0]
+    text = re.sub(r"<think>[\s\S]*?</think>", "", choice0["message"].get("content") or "").strip()
     u = data.get("usage") or {}
-    return text, {"tokens_in": u.get("prompt_tokens"), "tokens_out": u.get("completion_tokens"), "cost": u.get("cost")}
+    usage = {"tokens_in": u.get("prompt_tokens"), "tokens_out": u.get("completion_tokens"), "cost": u.get("cost")}
+    if (choice0.get("finish_reason") or choice0.get("native_finish_reason") or "") == "content_filter":
+        usage["blocked"] = "the provider's content filter stopped the answer" + ("" if text else " (no answer)")
+    return text, usage
+
+
+def blocked_by(r: httpx.Response) -> str | None:
+    """OpenRouter answers 403 with metadata.reasons when its moderation flags a request."""
+    try:
+        err = r.json().get("error") or {}
+    except ValueError:
+        return None
+    meta = err.get("metadata") or {}
+    if r.status_code == 403 or meta.get("reasons") or "flagged" in str(err.get("message", "")).lower():
+        reasons = ", ".join(str(x) for x in meta.get("reasons") or []) or str(err.get("message", ""))[:120]
+        return "OpenRouter's moderation refused the request" + (f": {reasons}" if reasons else "")
+    return None
 
 
 async def _bedrock(s, model: str, system: str, user: str, max_tokens: int) -> tuple[str, dict[str, Any]]:

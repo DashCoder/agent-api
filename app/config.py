@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     # --- Models the agents can use (Model & tools; see app/llm.py) ---------------------------
     ollama_url: str = "http://127.0.0.1:11434"
     openrouter_api_key: str = ""
+    # OpenRouter traces in Agent logs (see app/openrouter_traces.py): pull from the relay, or accept pushes
+    openrouter_relay_url: str = ""
+    openrouter_relay_token: str = ""
+    openrouter_relay_interval_s: int = 30
+    openrouter_traces_token: str = ""
     bedrock_access_key_id: str = ""
     bedrock_secret_access_key: str = ""
     lambda_access_key_id: str = ""        # fallback AWS keys, as in the dashboard

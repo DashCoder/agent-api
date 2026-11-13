@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS audit_events (
     target TEXT NOT NULL, detail TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_audit_ts ON audit_events(ts);
+CREATE TABLE IF NOT EXISTS otel_seen (span_id TEXT PRIMARY KEY, ts REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS uploads (
     id TEXT PRIMARY KEY, owner TEXT NOT NULL, filename TEXT NOT NULL,
     path TEXT NOT NULL, size INTEGER NOT NULL, created_at REAL NOT NULL

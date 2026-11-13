@@ -1,0 +1,143 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  InAgentic OpenRouter trace relay. OpenRouter (Observability > Broadcast > Webhook) posts traces to this Lambda's
+  public URL; they wait in a queue (kept 1 day) until agent-api on the mini pulls them. Nothing on the mini is exposed.
+  Delete the stack when you're done debugging.
+
+Parameters:
+  PushToken:
+    Type: String
+    NoEcho: true
+    MinLength: 24
+    Description: "OpenRouter sends this as Authorization Bearer <PushToken> (set in OpenRouter's webhook headers)"
+  PullToken:
+    Type: String
+    NoEcho: true
+    MinLength: 24
+    Description: "agent-api sends this to pull traces (OPENROUTER_RELAY_TOKEN in agent-api's .env)"
+
+Resources:
+  Queue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 86400
+      VisibilityTimeout: 60
+      SqsManagedSseEnabled: true
+
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: queue
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [sqs:SendMessage, sqs:ReceiveMessage, sqs:DeleteMessage]
+                Resource: !GetAtt Queue.Arn
+
+  Relay:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 20
+      MemorySize: 128
+      ReservedConcurrentExecutions: 5
+      Role: !GetAtt Role.Arn
+      Environment:
+        Variables:
+          QUEUE_URL: !Ref Queue
+          PUSH_TOKEN: !Ref PushToken
+          PULL_TOKEN: !Ref PullToken
+      Code:
+        ZipFile: |
+          import base64, hmac, json, os
+          import boto3
+          sqs = boto3.client("sqs")
+          Q = os.environ["QUEUE_URL"]
+          LIMIT = 240000
+          def out(code, body):
+              return {"statusCode": code, "headers": {"content-type": "application/json"}, "body": json.dumps(body)}
+          def ok_token(event, name):
+              h = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
+              return hmac.compare_digest(h.get("authorization", ""), "Bearer " + os.environ[name])
+          def body_of(event):
+              b = event.get("body") or ""
+              return base64.b64decode(b).decode("utf-8", "replace") if event.get("isBase64Encoded") else b
+          def shrink(text):
+              # SQS takes 256 KB: drop long attribute values (prompt and answer text), keep the numbers
+              data = json.loads(text)
+              for rs in data.get("resourceSpans", []):
+                  for ss in rs.get("scopeSpans", []):
+                      for sp in ss.get("spans", []):
+                          sp["attributes"] = [a for a in sp.get("attributes", [])
+                                              if len(json.dumps(a.get("value", {}))) < 2000]
+              return json.dumps(data)
+          def handler(event, _ctx):
+              http = event["requestContext"]["http"]
+              path, method = event.get("rawPath", "/"), http["method"]
+              if path == "/traces" and method in ("POST", "PUT"):
+                  if not ok_token(event, "PUSH_TOKEN"):
+                      return out(401, {"error": "wrong token"})
+                  h = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
+                  text = body_of(event)
+                  if h.get("x-test-connection") == "true" or not text.strip():
+                      return out(200, {"ok": True, "test": True})
+                  if len(text) > LIMIT:
+                      text = shrink(text)[:LIMIT * 4]
+                      if len(text) > LIMIT:
+                          return out(200, {"ok": False, "skipped": "too large"})
+                  sqs.send_message(QueueUrl=Q, MessageBody=text)
+                  return out(200, {"ok": True})
+              if path == "/pull" and method == "GET":
+                  if not ok_token(event, "PULL_TOKEN"):
+                      return out(401, {"error": "wrong token"})
+                  r = sqs.receive_message(QueueUrl=Q, MaxNumberOfMessages=10, WaitTimeSeconds=0, VisibilityTimeout=60)
+                  return out(200, {"items": [{"id": m["ReceiptHandle"], "body": m["Body"]} for m in r.get("Messages", [])]})
+              if path == "/ack" and method == "POST":
+                  if not ok_token(event, "PULL_TOKEN"):
+                      return out(401, {"error": "wrong token"})
+                  ids = json.loads(body_of(event) or "{}").get("ids", [])[:10]
+                  if ids:
+                      sqs.delete_message_batch(QueueUrl=Q, Entries=[{"Id": str(i), "ReceiptHandle": h} for i, h in enumerate(ids)])
+                  return out(200, {"ok": True, "deleted": len(ids)})
+              return out(404, {"error": "not found"})
+
+  RelayUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt Relay.Arn
+      AuthType: NONE
+
+  PublicUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Relay
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
+  PublicInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Relay
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true
+
+Outputs:
+  RelayUrl:
+    Description: "OPENROUTER_RELAY_URL in agent-api's .env"
+    Value: !GetAtt RelayUrl.FunctionUrl
+  WebhookUrl:
+    Description: "Paste this into OpenRouter (Observability, Broadcast, Webhook, URL)"
+    Value: !Sub "${RelayUrl.FunctionUrl}traces"

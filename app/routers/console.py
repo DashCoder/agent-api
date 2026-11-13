@@ -46,7 +46,9 @@ def belongs(event: dict[str, Any], agent: str, prefixes: list[str], all_prefixes
     detail = event["detail"] if isinstance(event["detail"], dict) else json.loads(event["detail"] or "{}")
     if agent == "all":
         return True
-    if action in ("mcp.call", "llm.call", "models.set"):   # tagged with the agent they belong to
+    if action == "openrouter.trace" and not detail.get("plugin"):   # e.g. Hermes' own calls: the assistant's
+        return agent == ASSISTANT
+    if action in ("mcp.call", "llm.call", "models.set", "openrouter.trace"):   # tagged with the agent they belong to
         return detail.get("plugin") == agent
     if agent == ASSISTANT:  # everything no plugin claims: logins, settings, the chat assistant
         return not any(action.startswith(x) for x in all_prefixes)

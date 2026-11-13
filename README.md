@@ -143,6 +143,32 @@ mcp_servers:
 **Audit trail.** `db.audit(actor, action, target, **detail)` appends to `audit_events`; the core logs admin logins
 and denied MCP calls, and plugins log their own actions. `GET /api/admin/audit` returns the trail.
 
+## OpenRouter traces (optional, for debugging)
+
+OpenRouter can send a trace of every model call (Settings → Observability → Broadcast → Webhook): model, provider,
+tokens, cost, timing, finish reason and errors. agent-api shows them in **Agent logs** under the agent that made the
+call, marks calls that were **blocked** (OpenRouter's moderation, or a provider's content filter) and has an
+"Only failed or blocked" filter. Prompts and answers are never stored; switch on Privacy Mode in OpenRouter too.
+
+OpenRouter needs a public URL and the mini isn't public, so `deploy/openrouter-relay/template.yaml` is a tiny AWS
+relay: a Lambda function URL that queues traces (kept one day) and that agent-api pulls every 30 seconds. Nothing on
+the mini is exposed. It costs well under a dollar a month; delete the stack when you're done.
+
+1. Deploy it (any AWS account; tokens are made on your machine and never shown):
+   ```
+   PUSH=$(openssl rand -hex 24); PULL=$(openssl rand -hex 24)
+   aws cloudformation deploy --stack-name openrouter-relay --template-file deploy/openrouter-relay/template.yaml \
+     --capabilities CAPABILITY_IAM --parameter-overrides PushToken=$PUSH PullToken=$PULL
+   aws cloudformation describe-stacks --stack-name openrouter-relay --query "Stacks[0].Outputs" --output table
+   ```
+2. In agent-api's `.env`: `OPENROUTER_RELAY_URL=<RelayUrl output>` and `OPENROUTER_RELAY_TOKEN=<PULL>`; restart.
+3. In OpenRouter → Observability → Broadcast → Webhook: URL = the `WebhookUrl` output, headers
+   `{"Authorization": "Bearer <PUSH>"}`, Privacy Mode on, then Test Connection and save.
+
+Agents tag their OpenRouter calls (`user: "inagentic:<agent>"`), so each trace lands under the right agent; calls
+without a tag (e.g. Hermes' own) are under the assistant. If you publish agent-api yourself, OpenRouter can also post
+straight to `/api/hooks/openrouter` with `OPENROUTER_TRACES_TOKEN` as the bearer token.
+
 ## Extending
 
 - **Friendly tool labels:** `TOOL_LABELS` in `app/hermes.py`.
