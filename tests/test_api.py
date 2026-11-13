@@ -244,3 +244,22 @@ def test_chat_as_one_agent(tmp_path):
     assert text.startswith("You are Dex. The person opened Dex's chat") and "show that table as it is" in text
     t2 = build_instructions({"assistant": {}, "focus": {"id": "demo", "name": "Dex", "hint": "", "tools": ["add_note"]}}, True)
     assert "Dex's tools (in the inagentic MCP server): add_note" in t2 and "never ask the person to connect" in t2
+
+
+def test_simli_refusals_say_what_to_fix():
+    import asyncio
+    import httpx
+    from app.routers import simli as simli_mod
+    seen = {}
+
+    def route(req):
+        seen["key"] = req.headers["x-simli-api-key"]
+        return httpx.Response(401, json={"detail": "Unauthorized"})
+    s = Settings(hermes_mode="mock", data_dir="/tmp/x", admin_password="p", secret_key="t",
+                 simli_api_key=' "sk-abc" ', _env_file=None)
+    try:
+        asyncio.run(simli_mod.request_token(s, "face", httpx.MockTransport(route)))
+    except Exception as e:  # noqa: BLE001
+        assert "didn't accept the API key" in e.detail and "SIMLI_API_KEY" in e.detail
+    assert seen["key"] == "sk-abc"
+    assert "another Simli account" in simli_mod.refusal(403, "")

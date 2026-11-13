@@ -32,14 +32,31 @@ def _count_today(db: DB, limit: int) -> None:
     db.set_setting("simli_usage", {"date": today, "count": count + 1})
 
 
-async def request_token(s: Settings, face_id: str) -> str:
-    body = {"faceId": face_id, "handleSilence": True, "maxSessionLength": s.simli_max_session_s,
+def clean_key(key: str) -> str:
+    """Keys pasted into .env with quotes or a trailing space are the commonest cause of a 401."""
+    return key.strip().strip('"').strip("'").strip()
+
+
+def refusal(status: int, body: str) -> str:
+    if status == 401:
+        return ("Simli refused the session (401): it didn't accept the API key. Check SIMLI_API_KEY in agent-api's "
+                ".env: copy the key again from Simli's dashboard (API keys) and restart agent-api")
+    if status == 403:
+        return ("Simli refused the session (403): the face belongs to another Simli account. Use a face ID from "
+                "the account whose API key is in SIMLI_API_KEY")
+    if status == 402:
+        return "Simli refused the session (402): the account has no credits left"
+    return f"Simli refused the session ({status}){': ' + body[:200] if body else ''}"
+
+
+async def request_token(s: Settings, face_id: str, transport=None) -> str:
+    body = {"faceId": face_id.strip(), "handleSilence": True, "maxSessionLength": s.simli_max_session_s,
             "maxIdleTime": 120}
-    async with httpx.AsyncClient(timeout=15) as c:
+    async with httpx.AsyncClient(timeout=15, transport=transport) as c:
         r = await c.post(f"{s.simli_api_url}/compose/token", json=body,
-                         headers={"x-simli-api-key": s.simli_api_key})
+                         headers={"x-simli-api-key": clean_key(s.simli_api_key)})
     if r.status_code >= 400:
-        raise HTTPException(status_code=502, detail=f"Simli refused the session ({r.status_code})")
+        raise HTTPException(status_code=502, detail=refusal(r.status_code, r.text.strip()))
     token = r.json().get("session_token")
     if not token:
         raise HTTPException(status_code=502, detail="Simli returned no session token")
