@@ -43,7 +43,7 @@ class LoginBody(BaseModel):
 
 @router.post("/auth/login")
 def login(body: LoginBody, request: Request, s: Settings = Depends(get_settings)):
-    if not check_admin_credentials(body.username, body.password, s):
+    if not check_admin_credentials(body.username, body.password, s, request.app.state.db):
         request.app.state.db.audit(body.username[:64], "admin.login_failed", "admin")
         raise HTTPException(status_code=401, detail="Wrong username or password")
     request.session["user"] = {"username": body.username, "role": "admin"}

@@ -80,6 +80,9 @@ class Plugin:
     public_info: dict[str, Any] = field(default_factory=dict)
     mcp_instructions: str = ""
     on_startup: Callable[[FastAPI], None] | None = None
+    # Settings the admin may set on "Settings & keys" (API keys, connections). Each: {"name": "JIRA_API_TOKEN",
+    # "label", "group", "help", "secret": bool, "test": "jira" | …, "hermes": bool, "placeholder"}; see app/options.py
+    options: list[dict[str, Any]] = field(default_factory=list)
 
 
 class PluginError(RuntimeError):

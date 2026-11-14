@@ -74,6 +74,9 @@ class Settings(BaseSettings):
     # --- Dev helpers ---------------------------------------------------------
     # Return the "Save my work" verification code in the API response instead of emailing it.
     dev_show_codes: bool = True
+    # Saving on "Settings & keys" restarts agent-api so every agent picks the values up (Docker or launchd starts
+    # it again). Off in tests.
+    options_restart: bool = True
     mock_delay_s: float = 0.02
 
     @property

@@ -30,9 +30,15 @@ def verify_password(password: str, stored: str) -> bool:
         return False
 
 
-def check_admin_credentials(username: str, password: str, s: Settings) -> bool:
+ADMIN_HASH_KEY = "admin.password_hash"     # set by "Change password"; wins over ADMIN_PASSWORD_HASH
+
+
+def check_admin_credentials(username: str, password: str, s: Settings, db=None) -> bool:
     if not hmac.compare_digest(username, s.admin_username):
         return False
+    saved = db.get_setting(ADMIN_HASH_KEY) if db is not None else None
+    if saved:
+        return verify_password(password, saved)
     if s.admin_password_hash:
         return verify_password(password, s.admin_password_hash)
     if s.admin_password:  # dev only
