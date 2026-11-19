@@ -39,6 +39,10 @@ CREATE TABLE IF NOT EXISTS audit_events (
 );
 CREATE INDEX IF NOT EXISTS ix_audit_ts ON audit_events(ts);
 CREATE TABLE IF NOT EXISTS otel_seen (span_id TEXT PRIMARY KEY, ts REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS email_links (
+    id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, email TEXT NOT NULL, visitor TEXT NOT NULL,
+    next TEXT NOT NULL, created_at REAL NOT NULL, approved_at REAL, used_at REAL
+);
 CREATE TABLE IF NOT EXISTS option_values (
     name TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at REAL NOT NULL, updated_by TEXT NOT NULL
 );

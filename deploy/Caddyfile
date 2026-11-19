@@ -4,7 +4,8 @@
 	admin off
 }
 
-http://127.0.0.1:8080, http://*.localhost:8080 {
+http://127.0.0.1:8080, http://*.localhost:8080, http://127.0.0.1:8088, http://*.localhost:8088 {
+	bind 127.0.0.1 [::1]   # this Mac only: 8080 for browsers on the mini, 8088 the same port as the SSH tunnel
 	encode zstd gzip
 
 	# live previews from the coding agent, each on its own address: http://<project>-<ticket>.localhost:8088

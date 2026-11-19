@@ -52,9 +52,19 @@ class VerifyBody(BaseModel):
     code: str
 
 
-def send_code(email: str, code: str) -> None:
-    """Replace with your mail provider (Postmark, SES, Resend…)."""
-    log.warning("Save-my-work code for %s: %s (wire up a mailer in app/routers/user.py)", email, code)
+def send_code(email: str, code: str, s: Settings | None = None) -> None:
+    """Emails the code through SES when it's set up (Settings & keys); otherwise it's only in the log."""
+    from .. import mailer
+    if s is not None and mailer.configured(s):
+        import asyncio
+        text = f"Your code is {code}. It works for 15 minutes."
+        try:
+            asyncio.run(mailer.send(s, email, "Your verification code", text, f"<p>Your code is <b>{code}</b>.</p>"
+                                    "<p>It works for 15 minutes.</p>"))
+            return
+        except RuntimeError as e:
+            log.warning("Couldn't email the code to %s: %s", email, e)
+    log.warning("Save-my-work code for %s: %s (set up email on Settings & keys to send it)", email, code)
 
 
 @router.post("/save-work/start")
@@ -69,7 +79,7 @@ def save_work_start(body: EmailBody, request: Request, db: DB = Depends(get_db),
     db.execute("INSERT INTO save_work(email, visitor, code, verified, created_at) VALUES(?,?,?,0,?) "
                "ON CONFLICT(email, visitor) DO UPDATE SET code = excluded.code, created_at = excluded.created_at",
                (email, visitor, code, time.time()))
-    send_code(email, code)
+    send_code(email, code, s)
     return {"sent": True, **({"devCode": code} if s.dev_show_codes else {})}
 
 

@@ -42,6 +42,7 @@ GROUPS = {
     "notes": "Nora (notes)",
     "kpi": "Kai (KPIs)",
     "avatar": "Talking avatar",
+    "email": "Email (sign-in links)",
 }
 
 CORE_OPTIONS: list[dict[str, Any]] = [
@@ -52,6 +53,14 @@ CORE_OPTIONS: list[dict[str, Any]] = [
     {"name": "ANTHROPIC_API_KEY", "label": "Anthropic API key", "group": "models", "secret": True, "hermes": True,
      "test": "anthropic", "placeholder": "sk-ant-…",
      "help": "For Claude models directly from Anthropic (console.anthropic.com). Optional."},
+    {"name": "SES_ACCESS_KEY_ID", "label": "AWS SES access key ID", "group": "email", "placeholder": "AKIA…",
+     "help": "Sends sign-in links (e.g. to open pull requests) and \"Save my work\" codes through Amazon SES. "
+             "Use a key that may only send email (ses:SendEmail)."},
+    {"name": "SES_SECRET_ACCESS_KEY", "label": "AWS SES secret access key", "group": "email", "secret": True},
+    {"name": "SES_REGION", "label": "AWS SES region", "group": "email", "placeholder": "eu-west-2",
+     "help": "Where your sending domain is verified in SES."},
+    {"name": "MAIL_FROM", "label": "Send emails from", "group": "email", "placeholder": "InAgentic <noreply@inagentic.ai>",
+     "help": "An address on a domain verified in SES."},
     {"name": "SIMLI_API_KEY", "label": "Simli API key", "group": "avatar", "secret": True,
      "help": "A talking video avatar in the chat (simli.com). Optional."},
 ]

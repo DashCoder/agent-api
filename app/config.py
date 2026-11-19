@@ -57,6 +57,11 @@ class Settings(BaseSettings):
 
     # --- Live avatar (Simli, optional) ------------------------------------------
     # The key stays on the server; browsers get short-lived session tokens from /api/simli/token.
+    # Email (AWS SES): sign-in links and "Save my work" codes. Set on Settings & keys.
+    ses_access_key_id: str = ""
+    ses_secret_access_key: str = ""
+    ses_region: str = "eu-west-2"
+    mail_from: str = "InAgentic <noreply@inagentic.ai>"
     simli_api_key: str = ""
     simli_api_url: str = "https://api.simli.ai"
     simli_max_session_s: int = 600

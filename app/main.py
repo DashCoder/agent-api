@@ -16,8 +16,8 @@ from .db import DB
 from .hermes import make_agent
 from . import openrouter_traces, options
 from .plugins import Plugin, install_plugins, resolve_plugins
-from .routers import (admin, chat, console, files, mcp, models, options_admin, plugins_admin, public, simli, tts,
-                      user)
+from .routers import (admin, chat, console, email_login, files, mcp, models, options_admin, plugins_admin, public,
+                      simli, tts, user)
 
 
 def create_app(settings: Settings | None = None, plugins: list[Plugin] | None = None) -> FastAPI:
@@ -40,7 +40,7 @@ def create_app(settings: Settings | None = None, plugins: list[Plugin] | None = 
                        allow_methods=["*"], allow_headers=["*"])
 
     for r in (public.router, chat.router, user.router, admin.router, console.router, tts.router, simli.router,
-              files.router, mcp.router, plugins_admin.router, models.router, options_admin.router):
+              files.router, mcp.router, plugins_admin.router, models.router, options_admin.router, email_login.router):
         app.include_router(r)
     openrouter_traces.install(app)
     install_plugins(app, plugins if plugins is not None else resolve_plugins(s.plugins))
