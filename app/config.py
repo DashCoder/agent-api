@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     direct_history: int = 12                # earlier messages of the chat sent with each question
     direct_tool_rounds: int = 6             # rounds of tool calls per reply
     direct_max_tokens: int = 4000
+    # Let a local model think before it answers (Ollama). Off: on a CPU server thinking first delays the reply by a
+    # minute or more; the tools still give it the facts.
+    direct_think: bool = False
+    direct_cloud_model: str = "google/gemini-2.5-flash"   # "OpenRouter" in the chat box (changeable on Model & tools)
     hermes_api_url: str = "http://127.0.0.1:8642"
     hermes_api_key: str = ""
     hermes_model: str = "hermes-agent"

@@ -5,12 +5,13 @@ import json
 import re
 import time
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from .. import security
+from .. import direct, security
 from ..auth import owner_key
 from ..config import Settings, get_settings
 from ..db import DB, new_id
@@ -65,6 +66,7 @@ class SendBody(BaseModel):
     learn: bool = False
     attachments: list[str] = []
     agent: str | None = Field(default=None, max_length=40)   # talking to one agent (?agent=kpi)
+    model: Literal["local", "openrouter"] | None = None      # picked in the chat box (chat without Hermes)
 
 
 def _sse(event: dict) -> str:
@@ -153,6 +155,8 @@ async def stream_reply(session_id: str, body: SendBody, request: Request, db: DB
 
     if not trusted:
         context["agentHints"] = []
+    if trusted and body.model in direct.engines(request.app):
+        context["engine"] = body.model      # visitors who aren't trusted always use the local model (no cloud cost)
     secrets = security.known_secrets(request.app)
     turns = request.app.state.active_turns
     turn = new_id()

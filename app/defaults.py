@@ -22,6 +22,8 @@ DEFAULT_SITE = {
         "idleVideos": [],
         "talkVideos": [],
         "speakReplies": False,
+        # Clips move on their own (muted) when the page opens; the play button adds the voice
+        "autoplay": True,
         # Microsoft Edge neural voice used by /api/tts, e.g. en-GB-RyanNeural, en-GB-SoniaNeural
         "voice": "en-GB-RyanNeural",
         # Live lip-synced avatar from Simli (needs SIMLI_API_KEY in .env). Visitors can switch it on.

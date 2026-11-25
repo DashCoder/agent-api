@@ -33,6 +33,8 @@ def public_config(request: Request, db: DB = Depends(get_db)):
     out["avatar"].pop("simliFaces", None)       # face IDs stay on the server
     out["plugins"] = [{"name": p.name, "version": p.version, **p.public_info}
                       for p in request.app.state.plugins.values()]
+    from ..direct import engines
+    out["chatModels"] = engines(request.app)     # [] or ["local"] or ["local", "openrouter"]
     return out
 
 
