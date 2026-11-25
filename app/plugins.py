@@ -52,6 +52,13 @@ class ToolContext:
     db: DB
     settings: Settings
     plugin_settings: Any
+    # Who the tool runs for (app.security): {"role": "admin" | "trusted" | "verified" | "anonymous" | "system",
+    # "email": a verified email or None}. Taken from the signed session of the chat(s) running, never from arguments.
+    caller: dict[str, Any] = field(default_factory=lambda: {"role": "system", "email": None})
+
+    @property
+    def caller_email(self) -> str | None:
+        return self.caller.get("email")
 
     def audit(self, action: str, target: str, actor: str = "agent", **detail: Any) -> None:
         self.db.audit(actor, action, target, **detail)
@@ -66,6 +73,9 @@ class McpTool:
     description: str
     input_schema: dict[str, Any]
     handler: ToolHandler
+    # Least trusted caller that may use it: "trusted" (default: the admin, TRUSTED_EMAILS, or the server itself),
+    # "admin" (the admin or the server only), "verified" (any verified email), or "public" (anyone).
+    access: str = "trusted"
 
 
 @dataclass

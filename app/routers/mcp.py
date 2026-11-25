@@ -18,13 +18,23 @@ from typing import Any
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 
+from .. import security
 from ..plugins import ToolContext
 
 router = APIRouter(prefix="/api")
 
 
-def _text(payload: Any, error: bool = False) -> dict[str, Any]:
-    return {"content": [{"type": "text", "text": json.dumps(payload, default=str)}], "isError": error}
+def _text(payload: Any, error: bool = False, secrets: list[str] | None = None) -> dict[str, Any]:
+    text = json.dumps(payload, default=str)
+    if secrets is not None:          # this server's own keys and well-known token formats never reach the agent
+        text = security.redact(text, secrets)
+    return {"content": [{"type": "text", "text": text}], "isError": error}
+
+
+def current_caller(app: Any) -> dict[str, Any]:
+    """Hermes calls tools with the MCP key only, so who the call is for comes from the web chats running now
+    (signed session cookies): the least trusted of them. No chat running = the server itself (Slack, schedules)."""
+    return security.least(list(getattr(app.state, "active_turns", {}).values()))
 
 
 async def _call(request: Request, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -32,18 +42,28 @@ async def _call(request: Request, name: str, args: dict[str, Any]) -> dict[str, 
     if not entry:
         return _text({"error": f"Unknown tool {name}"}, True)
     plugin_name, tool = entry
+    caller = current_caller(request.app)
+    secrets = security.known_secrets(request.app)
+    access = getattr(tool, "access", "trusted")
+    need = {"public": security.ANONYMOUS, "verified": security.VERIFIED, "admin": security.ADMIN}.get(access,
+                                                                                                    security.TRUSTED)
+    if not security.at_least(caller, need):
+        request.app.state.db.audit(caller.get("email") or caller["role"], "mcp.refused", name, plugin=plugin_name,
+                                   role=caller["role"])
+        return _text({"error": f"{name} isn't available in this chat: it needs the admin or a trusted, signed-in "
+                               "email. Tell the person to sign in; don't try another way."}, True)
     ctx = ToolContext(request=request, db=request.app.state.db, settings=request.app.state.settings,
-                      plugin_settings=request.app.state.plugin_settings.get(plugin_name))
+                      plugin_settings=request.app.state.plugin_settings.get(plugin_name), caller=caller)
     started = time.monotonic()
     err = None
     try:
-        out = _text(await tool.handler(ctx, args))
+        out = _text(await tool.handler(ctx, args), secrets=secrets)
     except Exception as exc:  # report failures to the agent instead of breaking its session
-        err = str(getattr(exc, "detail", None) or exc)
+        err = security.redact(str(getattr(exc, "detail", None) or exc), secrets)
         out = _text({"error": err}, True)
     # Every tool call is logged with its plugin, how long it took, what it was about (never file contents or
     # secrets) and why it failed, so Agent logs can show what the agent did step by step.
-    detail: dict[str, Any] = {"plugin": plugin_name, "error": bool(out["isError"]),
+    detail: dict[str, Any] = {"plugin": plugin_name, "error": bool(out["isError"]), "role": caller["role"],
                               "ms": round((time.monotonic() - started) * 1000)}
     about = summarize_args(args)
     if about:

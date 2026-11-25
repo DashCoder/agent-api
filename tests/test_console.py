@@ -14,7 +14,7 @@ def chat(c, text):
 
 
 def test_conversations_list_and_transcript(tmp_path):
-    c = make(tmp_path, [plugin])
+    c = make(tmp_path, [plugin], chat_access="public")   # visitors chat (a tool-less Hermes)
     sid = chat(c, "What are your rates?")
     chat(c, "Do you work weekends?")
     assert c.get("/api/admin/conversations").status_code == 401

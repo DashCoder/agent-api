@@ -185,10 +185,35 @@ straight to `/api/hooks/openrouter` with `OPENROUTER_TRACES_TOKEN` as the bearer
 pytest -q
 ```
 
+## Security
+
+Hermes has tools, a terminal and your connections, so by default only these may chat with it (`app/security.py`):
+
+- the **admin** (signed in to the admin), and
+- **trusted emails**: people who signed in with an email listed in `TRUSTED_EMAILS` (or on Settings & keys).
+
+Anyone else gets "please sign in" (HTTP 401 `sign_in`, or 403 `not_trusted` for a verified email that isn't listed).
+To let the public chat too, set `CHAT_ACCESS=public` **and** run a second Hermes profile with no tools, no terminal
+and no MCP, at `HERMES_PUBLIC_API_URL` / `HERMES_PUBLIC_API_KEY`. Public chat is limited per IP (`CHAT_PER_MINUTE`,
+`CHAT_PER_DAY`) and for the whole site (`CHAT_SITE_PER_DAY`); attempts to extract prompts, config or keys get a fixed
+reply without a model call, and three in a day pause that connection for 24 hours.
+
+- **Tools** (`/api/mcp`) run for the least trusted web chat running at that moment (from signed session cookies, never
+  from arguments); with no chat running, for the server itself (Slack, schedules). Plugin tools need a trusted caller
+  unless they declare `access="public"`, `"verified"` or `"admin"`; tools see `ctx.caller`.
+- **Secrets** (this server's own keys, every saved key, and well-known token formats) are redacted from chat replies,
+  tool results and tool errors.
+- **Email sign-in** (`/api/auth/email-link`): the email has a link and a 6-digit code. The link signs in only the
+  browser that opens it; the code signs in the browser that asked (5 tries). Links use `PUBLIC_URL`, or the address in
+  use only if it's this machine or in `CORS_ORIGINS`. At most 3 emails an hour and 6 a day per real inbox
+  (`a+x@` = `a@`), 10 an hour per IP. "Save my work" codes have the same limits.
+- **Approvals**, voice, live avatar and uploads are limited or admin-only for untrusted callers.
+
 ## Production checklist
 
 `SECRET_KEY` set · `ADMIN_PASSWORD_HASH` set (no `ADMIN_PASSWORD`) · `COOKIE_SECURE=true` behind HTTPS ·
-`DEV_SHOW_CODES=false` · a real mailer in `send_code()` · bind to 127.0.0.1 behind Caddy · Hermes on 127.0.0.1 only.
+`DEV_SHOW_CODES=false` · SES set on Settings & keys · `PUBLIC_URL` set · `TRUSTED_EMAILS` set · bind to 127.0.0.1
+behind Caddy · Hermes on 127.0.0.1 only.
 
 ## License
 

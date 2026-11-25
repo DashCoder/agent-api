@@ -13,7 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import Settings, get_settings
 from .db import DB
-from .hermes import make_agent
+from .hermes import make_agent, make_public_agent
 from . import openrouter_traces, options
 from .plugins import Plugin, install_plugins, resolve_plugins
 from .routers import (admin, chat, console, email_login, files, mcp, models, options_admin, plugins_admin, public,
@@ -33,6 +33,9 @@ def create_app(settings: Settings | None = None, plugins: list[Plugin] | None = 
     app.state.settings = s
     app.state.db = DB(Path(s.data_dir) / "app.db")
     app.state.agent = make_agent(s)
+    app.state.public_agent = make_public_agent(s)
+    app.state.active_turns = {}       # web chats running now → who they're for (tools check it; app/security.py)
+    app.state.extra_secrets = list(options.SAVED.values())   # saved keys are redacted from replies too
 
     app.add_middleware(SessionMiddleware, secret_key=s.secret_key, session_cookie="agent_session",
                        same_site="lax", https_only=s.cookie_secure, max_age=60 * 60 * 24 * 180)

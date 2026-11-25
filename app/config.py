@@ -23,6 +23,17 @@ class Settings(BaseSettings):
     hermes_dashboard_url: str = ""
     # How agent-api restarts Hermes after the admin changes its model on Model & tools.
     hermes_restart_cmd: str = "~/.local/bin/hermes gateway restart"
+    # Who may chat with the agents (Hermes with its tools and terminal): the admin, and verified emails listed in
+    # TRUSTED_EMAILS (comma-separated). With CHAT_ACCESS=public everyone else may chat too, but only with a separate
+    # Hermes that has no tools (HERMES_PUBLIC_API_URL/KEY); without one, they're asked to sign in.
+    trusted_emails: str = ""
+    chat_access: Literal["trusted", "public"] = "trusted"
+    hermes_public_api_url: str = ""
+    hermes_public_api_key: str = ""
+    # Chat limits for anyone who isn't the admin (per IP address, and for the whole site)
+    chat_per_minute: int = 8
+    chat_per_day: int = 150
+    chat_site_per_day: int = 3000
 
     # --- Models the agents can use (Model & tools; see app/llm.py) ---------------------------
     ollama_url: str = "http://127.0.0.1:11434"
@@ -44,6 +55,9 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     cookie_secure: bool = False  # set true behind HTTPS
     cors_origins: str = "http://localhost:5173"
+    # This site's own address, used in links in emails (e.g. https://agents.example.com). Empty = the address in
+    # use, but only if it's this machine or listed in CORS_ORIGINS.
+    public_url: str = ""
     data_dir: Path = Path("./data")
     max_upload_mb: int = 10
     # Folders whose files the chat may show and download (comma-separated). Agent output only — never ~ itself.

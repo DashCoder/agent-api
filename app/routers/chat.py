@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from .. import security
 from ..auth import owner_key
 from ..config import Settings, get_settings
 from ..db import DB, new_id
@@ -87,11 +88,52 @@ def remove_message(session_id: str, message_id: str, request: Request, db: DB = 
     return {"removed": gone}
 
 
+def chat_guard(request: Request, db: DB) -> tuple[dict, object]:
+    """Who may chat, with which Hermes, how often. Returns (caller, agent)."""
+    s = request.app.state.settings
+    caller = security.caller_of(request)
+    if security.at_least(caller, security.TRUSTED):
+        return caller, get_agent(request)
+    public = getattr(request.app.state, "public_agent", None)
+    if public is None:
+        if caller["role"] == security.VERIFIED:
+            raise HTTPException(status_code=403, detail={"code": "not_trusted", "message":
+                                f"{caller['email']} can't use the agents here. Ask the admin to add it, or sign in "
+                                "to the admin."})
+        raise HTTPException(status_code=401, detail={"code": "sign_in", "message":
+                            "Please sign in to chat with the agents."})
+    ip = security.client_ip(request)
+    if db.one("SELECT 1 FROM rate_events WHERE key = ? AND ts > ?", (f"blocked:{ip}", time.time() - 86400)):
+        raise HTTPException(status_code=429, detail="Chat is paused for this connection. Try again tomorrow.")
+    if not security.hit(db, f"chat-min:{ip}", 60, s.chat_per_minute):
+        raise HTTPException(status_code=429, detail="You're sending messages quickly. Wait a minute and try again.")
+    if not security.hit(db, f"chat-day:{ip}", 86400, s.chat_per_day):
+        raise HTTPException(status_code=429, detail="That's the most messages for today. Try again tomorrow.")
+    if not security.hit(db, "chat-site", 86400, s.chat_site_per_day):
+        raise HTTPException(status_code=429, detail="The chat is very busy today. Try again tomorrow.")
+    return caller, public
+
+
 @router.post("/sessions/{session_id}/stream")
 async def stream_reply(session_id: str, body: SendBody, request: Request, db: DB = Depends(get_db)):
     owner = owner_key(request)
     _own_session(db, session_id, owner)
-    agent = get_agent(request)
+    caller, agent = chat_guard(request, db)
+    trusted = security.at_least(caller, security.TRUSTED)
+    if not trusted and security.is_probe(body.text):
+        ip = security.client_ip(request)
+        security.hit(db, f"probe:{ip}", 86400, 10_000)
+        if security.count(db, f"probe:{ip}", 86400) >= 3:
+            security.hit(db, f"blocked:{ip}", 86400, 1)
+        db.audit(ip, "chat.probe", session_id)
+        user_msg = db.add_message(session_id, "user", body.text.strip())
+        saved = db.add_message(session_id, "assistant", security.PROBE_REPLY)
+
+        async def fixed():
+            yield _sse({"type": "start", "userMessage": user_msg})
+            yield _sse({"type": "delta", "text": security.PROBE_REPLY})
+            yield _sse({"type": "done", "message": saved})
+        return StreamingResponse(fixed(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
     text = body.text.strip()
     if body.attachments:
@@ -103,21 +145,42 @@ async def stream_reply(session_id: str, body: SendBody, request: Request, db: DB
     site = get_site(db)
     context = {"assistant": site.get("assistant", {}), "business": site.get("business", {}),
                "agentHints": [p.public_info.get("assistantHint", "") for p in request.app.state.plugins.values()]}
-    focus = agent_of(request, body.agent)
+    focus = agent_of(request, body.agent) if trusted else None
     if focus:  # the visitor opened this agent's chat: answer as it, with its tools
         context["assistant"] = {**context["assistant"], "name": focus["name"]}
         context["agentHints"] = [focus["hint"]]
         context["focus"] = focus
 
+    if not trusted:
+        context["agentHints"] = []
+    secrets = security.known_secrets(request.app)
+    turns = request.app.state.active_turns
+    turn = new_id()
+
     async def gen():
         yield _sse({"type": "start", "userMessage": user_msg})
-        reply = []
-        async for ev in agent.stream(session_id, text, learn=body.learn, context=context):
-            if ev["type"] == "delta":
-                reply.append(ev["text"])
-            yield _sse(ev)
-            if await request.is_disconnected():
-                break
+        reply, red = [], security.StreamRedactor(secrets)
+        if trusted:              # tool calls made while this turn runs are for this caller (see routers/mcp.py)
+            turns[turn] = caller
+        try:
+            async for ev in agent.stream(session_id, text, learn=body.learn and trusted, context=context):
+                if ev["type"] == "delta":
+                    piece = red.feed(ev["text"])
+                    reply.append(piece)
+                    if piece:
+                        yield _sse({**ev, "text": piece})
+                else:
+                    if ev["type"] == "error":
+                        ev = {**ev, "message": security.redact(ev.get("message", ""), secrets)}
+                    yield _sse(ev)
+                if await request.is_disconnected():
+                    break
+        finally:
+            turns.pop(turn, None)
+        tail = red.flush()
+        if tail:
+            reply.append(tail)
+            yield _sse({"type": "delta", "text": tail})
         final = "".join(reply).strip()
         saved = db.add_message(session_id, "assistant", final) if final else None
         yield _sse({"type": "done", "message": saved})
@@ -134,6 +197,8 @@ class ApprovalBody(BaseModel):
 @router.post("/runs/{run_id}/approval")
 async def approval(run_id: str, body: ApprovalBody, request: Request, db: DB = Depends(get_db)):
     owner = owner_key(request)
+    if not security.at_least(security.caller_of(request), security.TRUSTED):
+        raise HTTPException(status_code=403, detail="Only the admin can approve what the agent does.")
     result = await get_agent(request).approve(run_id, body.approve)
     if body.sessionId and result.get("message"):
         _own_session(db, body.sessionId, owner)
@@ -148,6 +213,9 @@ SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 async def upload(request: Request, file: UploadFile = File(...), db: DB = Depends(get_db),
                  s: Settings = Depends(get_settings)):
     owner = owner_key(request)
+    if not security.at_least(security.caller_of(request), security.TRUSTED) and \
+            not security.hit(db, f"upload:{security.client_ip(request)}", 86400, 30):
+        raise HTTPException(status_code=429, detail="That's the most files for today.")
     data = await file.read(s.max_upload_mb * 1024 * 1024 + 1)
     if len(data) > s.max_upload_mb * 1024 * 1024:
         raise HTTPException(status_code=413, detail=f"File larger than {s.max_upload_mb} MB")

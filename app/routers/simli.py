@@ -15,6 +15,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from .. import security
 from ..auth import owner_key
 from ..config import Settings
 from ..db import DB
@@ -98,6 +99,9 @@ async def simli_token(request: Request, body: TokenBody | None = None, db: DB = 
     if not (s.simli_api_key and avatar.get("simliEnabled") and face):
         raise HTTPException(status_code=404, detail="The live avatar is not switched on.")
     who = owner_key(request)
+    if not security.at_least(security.caller_of(request), security.TRUSTED) and \
+            not security.hit(db, f"simli:{security.client_ip(request)}", 86400, 6):
+        raise HTTPException(status_code=429, detail="That's the most live-avatar sessions for today.")
     now = time.monotonic()
     if now - _last_request.get(who, -1e9) < COOLDOWN_S:
         raise HTTPException(status_code=429, detail="Please wait a few seconds before restarting the live avatar.")

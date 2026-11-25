@@ -59,4 +59,9 @@ def logout(request: Request):
 
 @router.get("/auth/me")
 def me(request: Request):
-    return {"user": current_user(request), "email": request.session.get("email")}
+    from .. import security
+    caller = security.caller_of(request)
+    s = request.app.state.settings
+    can_chat = security.at_least(caller, security.TRUSTED) or getattr(request.app.state, "public_agent", None) is not None
+    return {"user": current_user(request), "email": request.session.get("email"), "role": caller["role"],
+            "canChat": can_chat, "emailSignIn": bool(s.ses_access_key_id and s.ses_secret_access_key)}

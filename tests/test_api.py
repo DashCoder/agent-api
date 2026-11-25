@@ -35,7 +35,12 @@ def test_health_and_config(client):
     assert "business" not in cfg
 
 
+def admin(c):
+    assert c.post("/api/auth/login", json={"username": "admin", "password": "secret"}).status_code == 200
+
+
 def test_chat_stream_and_history(client):
+    admin(client)
     sess = client.post("/api/chat/sessions").json()
     assert sess["messages"][0]["role"] == "assistant"
     r = client.post(f"/api/chat/sessions/{sess['id']}/stream", json={"text": "What are your rates?"})
@@ -55,6 +60,7 @@ def test_sessions_are_private(client, tmp_path):
 
 
 def test_approval_flow(client):
+    admin(client)
     sess = client.post("/api/chat/sessions").json()
     events = sse_events(client.post(f"/api/chat/sessions/{sess['id']}/stream",
                                     json={"text": "delete old files"}).text)
@@ -201,7 +207,7 @@ def test_remove_a_question_and_its_answer(tmp_path):
     from app.config import Settings
     from app.main import create_app
     c = TestClient(create_app(Settings(hermes_mode="mock", data_dir=tmp_path, admin_password="x", mock_delay_s=0,
-                                       secret_key="t", _env_file=None), plugins=[]))
+                                       secret_key="t", _env_file=None, chat_access="public"), plugins=[]))
     sid = c.post("/api/chat/sessions").json()["id"]
     c.post(f"/api/chat/sessions/{sid}/stream", json={"text": "What are your rates?", "learn": False})
     c.post(f"/api/chat/sessions/{sid}/stream", json={"text": "Do you cover Leeds?", "learn": False})

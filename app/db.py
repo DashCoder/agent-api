@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS saved_replies (
 );
 CREATE TABLE IF NOT EXISTS save_work (
     email TEXT NOT NULL, visitor TEXT NOT NULL, code TEXT NOT NULL,
-    verified INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL,
+    verified INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL, tries INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (email, visitor)
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -41,8 +41,11 @@ CREATE INDEX IF NOT EXISTS ix_audit_ts ON audit_events(ts);
 CREATE TABLE IF NOT EXISTS otel_seen (span_id TEXT PRIMARY KEY, ts REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS email_links (
     id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, email TEXT NOT NULL, visitor TEXT NOT NULL,
-    next TEXT NOT NULL, created_at REAL NOT NULL, approved_at REAL, used_at REAL
+    next TEXT NOT NULL, created_at REAL NOT NULL, approved_at REAL, used_at REAL,
+    code_hash TEXT, tries INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS rate_events (key TEXT NOT NULL, ts REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS ix_rate_events ON rate_events(key, ts);
 CREATE TABLE IF NOT EXISTS option_values (
     name TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at REAL NOT NULL, updated_by TEXT NOT NULL
 );
@@ -65,6 +68,13 @@ class DB:
         self._lock = threading.Lock()
         with self._lock:
             self._conn.executescript(SCHEMA)
+            # columns added after the first release (CREATE TABLE IF NOT EXISTS doesn't add them)
+            for table, name, decl in (("email_links", "code_hash", "TEXT"),
+                                      ("email_links", "tries", "INTEGER NOT NULL DEFAULT 0"),
+                                      ("save_work", "tries", "INTEGER NOT NULL DEFAULT 0")):
+                cols = {r[1] for r in self._conn.execute(f"PRAGMA table_info({table})")}
+                if name not in cols:
+                    self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
             self._conn.commit()
 
     def execute(self, sql: str, params: tuple = ()) -> None:

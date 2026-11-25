@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import logging
 import re
+import hmac
 import secrets
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from .. import security
 from ..auth import owner_key
 from ..config import Settings, get_settings
 from ..db import DB, new_id
@@ -73,11 +75,20 @@ def save_work_start(body: EmailBody, request: Request, db: DB = Depends(get_db),
     email = body.email.strip().lower()
     if not EMAIL.match(email):
         raise HTTPException(status_code=422, detail="Please enter a valid email address")
+    box, ip = security.inbox(email), security.client_ip(request)
+    # same limits as sign-in emails: 3 an hour and 6 a day per real inbox, 10 an hour per IP address
+    if security.count(db, f"link:{box}", 3600) >= 3 or security.count(db, f"link:{box}", 86400) >= 6:
+        raise HTTPException(status_code=429, detail="Several codes were sent to this address already: use the "
+                                                    "newest one in your inbox, or try again later.")
+    if not security.hit(db, f"link-ip:{ip}", 3600, 10):
+        raise HTTPException(status_code=429, detail="Too many requests from here. Try again in an hour.")
+    security.hit(db, f"link:{box}", 86400, 10_000)
     owner_key(request)
     visitor = request.session["visitor"]
     code = f"{secrets.randbelow(1_000_000):06d}"
-    db.execute("INSERT INTO save_work(email, visitor, code, verified, created_at) VALUES(?,?,?,0,?) "
-               "ON CONFLICT(email, visitor) DO UPDATE SET code = excluded.code, created_at = excluded.created_at",
+    db.execute("INSERT INTO save_work(email, visitor, code, verified, created_at, tries) VALUES(?,?,?,0,?,0) "
+               "ON CONFLICT(email, visitor) DO UPDATE SET code = excluded.code, created_at = excluded.created_at, "
+               "tries = 0",
                (email, visitor, code, time.time()))
     send_code(email, code, s)
     return {"sent": True, **({"devCode": code} if s.dev_show_codes else {})}
@@ -89,9 +100,12 @@ def save_work_verify(body: VerifyBody, request: Request, db: DB = Depends(get_db
     owner_key(request)
     visitor = request.session["visitor"]
     row = db.one("SELECT * FROM save_work WHERE email = ? AND visitor = ?", (email, visitor))
-    if not row or row["code"] != body.code.strip() or time.time() - row["created_at"] > 15 * 60:
+    if not row or row["tries"] >= 5 or time.time() - row["created_at"] > 15 * 60:
         raise HTTPException(status_code=400, detail="That code is wrong or has expired")
-    db.execute("UPDATE save_work SET verified = 1 WHERE email = ? AND visitor = ?", (email, visitor))
+    if not hmac.compare_digest(row["code"], body.code.strip()):
+        db.execute("UPDATE save_work SET tries = tries + 1 WHERE email = ? AND visitor = ?", (email, visitor))
+        raise HTTPException(status_code=400, detail="That code is wrong or has expired")
+    db.execute("UPDATE save_work SET verified = 1, code = '' WHERE email = ? AND visitor = ?", (email, visitor))
     old, new = f"visitor:{visitor}", f"email:{email}"
     for table in ("saved_replies", "sessions", "uploads"):
         db.execute(f"UPDATE {table} SET owner = ? WHERE owner = ?", (new, old))

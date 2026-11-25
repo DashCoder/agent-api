@@ -43,6 +43,7 @@ GROUPS = {
     "kpi": "Kai (KPIs)",
     "avatar": "Talking avatar",
     "email": "Email (sign-in links)",
+    "access": "Who may use the agents",
 }
 
 CORE_OPTIONS: list[dict[str, Any]] = [
@@ -61,6 +62,10 @@ CORE_OPTIONS: list[dict[str, Any]] = [
      "help": "Where your sending domain is verified in SES."},
     {"name": "MAIL_FROM", "label": "Send emails from", "group": "email", "placeholder": "InAgentic <noreply@inagentic.ai>",
      "help": "An address on a domain verified in SES."},
+    {"name": "TRUSTED_EMAILS", "label": "Trusted emails", "group": "access",
+     "placeholder": "you@example.com, colleague@example.com",
+     "help": "Besides the admin, people who may chat with the agents and use their tools after signing in with "
+             "this email (comma-separated). Anyone else is asked to sign in, or gets the public chat if it's on."},
     {"name": "SIMLI_API_KEY", "label": "Simli API key", "group": "avatar", "secret": True,
      "help": "A talking video avatar in the chat (simli.com). Optional."},
 ]

@@ -10,6 +10,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
+from .. import security
 from ..auth import owner_key
 from ..db import DB
 from ..deps import get_db, get_site
@@ -55,6 +56,10 @@ class TTSBody(BaseModel):
 @router.post("/tts")
 async def tts(body: TTSBody, request: Request, db: DB = Depends(get_db)):
     owner_key(request)
+    if not security.at_least(security.caller_of(request), security.TRUSTED):
+        ip = security.client_ip(request)
+        if not (security.hit(db, f"tts-min:{ip}", 60, 20) and security.hit(db, f"tts-day:{ip}", 86400, 300)):
+            raise HTTPException(status_code=429, detail="Too many voice requests. Try again later.")
     voice = body.voice or get_site(db)["avatar"].get("voice") or DEFAULT_VOICE
     if not VOICE_RE.match(voice):
         raise HTTPException(status_code=400, detail="Unknown voice")
