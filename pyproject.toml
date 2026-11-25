@@ -19,6 +19,7 @@ dependencies = [
   "edge-tts>=7.0",
   "cryptography>=42",
   "boto3>=1.34",
+  "imageio-ffmpeg>=0.5",   # ffmpeg for avatar clips (routers/avatar_clips.py), no system install needed
 ]
 
 [project.optional-dependencies]

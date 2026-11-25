@@ -16,7 +16,7 @@ from .db import DB
 from .hermes import make_agent, make_public_agent
 from . import direct, openrouter_traces, options
 from .plugins import Plugin, install_plugins, resolve_plugins
-from .routers import (admin, chat, console, email_login, files, mcp, models, options_admin, plugins_admin, public,
+from .routers import (admin, avatar_clips, chat, console, email_login, files, mcp, models, options_admin, plugins_admin, public,
                       simli, tts, user)
 
 
@@ -45,7 +45,8 @@ def create_app(settings: Settings | None = None, plugins: list[Plugin] | None = 
                        allow_methods=["*"], allow_headers=["*"])
 
     for r in (public.router, chat.router, user.router, admin.router, console.router, tts.router, simli.router,
-              files.router, mcp.router, plugins_admin.router, models.router, options_admin.router, email_login.router):
+              files.router, mcp.router, plugins_admin.router, models.router, options_admin.router, email_login.router,
+              avatar_clips.router):
         app.include_router(r)
     openrouter_traces.install(app)
     install_plugins(app, plugins if plugins is not None else resolve_plugins(s.plugins))
