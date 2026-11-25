@@ -54,6 +54,12 @@ npm run dev
 `npm run test:e2e` in agent-ui.
 
 **Use the real agent:** set `HERMES_MODE=hermes` and `HERMES_API_KEY` in `agent-api/.env`, then restart the backend.
+
+**Chat without Hermes:** `HERMES_MODE=direct` sends chat straight to one model (chosen as "Chat" on Model & tools;
+default `DIRECT_MODEL=qwen3.6:35b-a3b` on the local Ollama) with a short prompt and the installed agents' tools.
+Replies start much sooner on a server without a GPU, and only one model needs to be in memory. You don't get Hermes'
+long-term memory, skills, terminal, web browsing, scheduled jobs or Slack bot. Tools keep the same access rules
+(see Security). Switch back any time with `HERMES_MODE=hermes`.
 See [docs/HERMES_MAC_MINI_SETUP.md](docs/HERMES_MAC_MINI_SETUP.md), section 10.
 
 API docs (Swagger): http://localhost:8000/docs

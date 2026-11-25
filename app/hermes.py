@@ -230,7 +230,26 @@ class HermesAgent:
                 return [{"name": i.get("name", str(i)), "description": i.get("description", "")}
                         if isinstance(i, dict) else {"name": str(i), "description": ""} for i in items]
         except (httpx.HTTPError, ValueError):
-            return []
+            return skills_on_disk(self.s.hermes_home)   # some Hermes releases fail on /v1/skills
+
+
+def skills_on_disk(home: Any) -> list[dict[str, Any]]:
+    """Hermes' skills read from its folder (skills/**/SKILL.md, name and description from the front matter)."""
+    from pathlib import Path
+    out = []
+    for f in sorted(Path(str(home)).expanduser().glob("skills/**/SKILL.md"))[:500]:
+        try:
+            head = f.read_text(errors="replace")[:4000]
+        except OSError:
+            continue
+        meta: dict[str, str] = {}
+        if head.startswith("---"):
+            for line in head.split("---", 2)[1].splitlines():
+                k, _, v = line.partition(":")
+                if k.strip() in ("name", "description") and v.strip():
+                    meta[k.strip()] = v.strip().strip("\"'")
+        out.append({"name": meta.get("name") or f.parent.name, "description": meta.get("description", "")})
+    return out
 
 
 class MockAgent:
@@ -291,15 +310,21 @@ class MockAgent:
                 {"name": "book-appointment", "description": "Finds a free slot and books it"}]
 
 
-def make_agent(s: Settings) -> Agent:
+def make_agent(s: Settings, app: Any = None) -> Agent:
+    if s.hermes_mode == "direct":
+        from .direct import DirectAgent
+        return DirectAgent(s, app)
     return HermesAgent(s) if s.hermes_mode == "hermes" else MockAgent(s)
 
 
-def make_public_agent(s: Settings) -> Agent | None:
+def make_public_agent(s: Settings, app: Any = None) -> Agent | None:
     """The Hermes for people who aren't trusted (CHAT_ACCESS=public): a separate Hermes profile with no tools, no
     terminal and no MCP. None = no public chat."""
     if s.chat_access != "public":
         return None
+    if s.hermes_mode == "direct":
+        from .direct import DirectAgent
+        return DirectAgent(s, app, tools=False)     # the same model, never with tools
     if s.hermes_mode != "hermes":
         return MockAgent(s)
     if not s.hermes_public_api_url or s.hermes_public_api_url.rstrip("/") == s.hermes_api_url.rstrip("/"):

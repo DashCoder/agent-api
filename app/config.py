@@ -12,8 +12,13 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # --- Hermes Agent ------------------------------------------------------
-    # "mock" runs a built-in fake agent so the UI works without Hermes.
-    hermes_mode: Literal["mock", "hermes"] = "mock"
+    # "mock" runs a built-in fake agent so the UI works without Hermes. "direct" chats without Hermes: agent-api asks
+    # the model chosen for "Chat" on Model & tools and runs the agents' tools itself (faster on CPU; see app/direct.py).
+    hermes_mode: Literal["mock", "hermes", "direct"] = "mock"
+    direct_model: str = "qwen3.6:35b-a3b"   # Chat's model until one is chosen on Model & tools
+    direct_history: int = 12                # earlier messages of the chat sent with each question
+    direct_tool_rounds: int = 6             # rounds of tool calls per reply
+    direct_max_tokens: int = 4000
     hermes_api_url: str = "http://127.0.0.1:8642"
     hermes_api_key: str = ""
     hermes_model: str = "hermes-agent"

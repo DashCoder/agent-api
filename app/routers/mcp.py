@@ -37,23 +37,36 @@ def current_caller(app: Any) -> dict[str, Any]:
     return security.least(list(getattr(app.state, "active_turns", {}).values()))
 
 
-async def _call(request: Request, name: str, args: dict[str, Any]) -> dict[str, Any]:
-    entry = request.app.state.mcp_tools.get(name)
-    if not entry:
-        return _text({"error": f"Unknown tool {name}"}, True)
-    plugin_name, tool = entry
-    caller = current_caller(request.app)
-    secrets = security.known_secrets(request.app)
+def allowed(caller: dict[str, Any], tool: Any) -> bool:
     access = getattr(tool, "access", "trusted")
     need = {"public": security.ANONYMOUS, "verified": security.VERIFIED, "admin": security.ADMIN}.get(access,
                                                                                                     security.TRUSTED)
-    if not security.at_least(caller, need):
-        request.app.state.db.audit(caller.get("email") or caller["role"], "mcp.refused", name, plugin=plugin_name,
-                                   role=caller["role"])
+    return security.at_least(caller, need)
+
+
+async def _call(request: Request, name: str, args: dict[str, Any]) -> dict[str, Any]:
+    return await call_tool(request.app, name, args, request=request)
+
+
+async def call_tool(app: Any, name: str, args: dict[str, Any], request: Any = None) -> dict[str, Any]:
+    """Run one plugin tool for whoever is chatting now: Hermes' MCP calls and direct chat (app/direct.py) both
+    come here, so the access rules and redaction are the same."""
+    if request is None:
+        from ..direct import AppRequest
+        request = AppRequest(app)
+    entry = app.state.mcp_tools.get(name)
+    if not entry:
+        return _text({"error": f"Unknown tool {name}"}, True)
+    plugin_name, tool = entry
+    caller = current_caller(app)
+    secrets = security.known_secrets(app)
+    if not allowed(caller, tool):
+        app.state.db.audit(caller.get("email") or caller["role"], "mcp.refused", name, plugin=plugin_name,
+                           role=caller["role"])
         return _text({"error": f"{name} isn't available in this chat: it needs the admin or a trusted, signed-in "
                                "email. Tell the person to sign in; don't try another way."}, True)
-    ctx = ToolContext(request=request, db=request.app.state.db, settings=request.app.state.settings,
-                      plugin_settings=request.app.state.plugin_settings.get(plugin_name), caller=caller)
+    ctx = ToolContext(request=request, db=app.state.db, settings=app.state.settings,
+                      plugin_settings=app.state.plugin_settings.get(plugin_name), caller=caller)
     started = time.monotonic()
     err = None
     try:
@@ -70,7 +83,7 @@ async def _call(request: Request, name: str, args: dict[str, Any]) -> dict[str, 
         detail["args"] = about
     if err:
         detail["reason"] = err[:300]
-    request.app.state.db.audit("hermes", "mcp.call", name, **detail)
+    app.state.db.audit("hermes" if app.state.settings.hermes_mode == "hermes" else "chat", "mcp.call", name, **detail)
     return out
 
 

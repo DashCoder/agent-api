@@ -100,3 +100,15 @@ def test_failed_response_shows_the_readable_reason():
     ev = translate_hermes_event("response.failed", {"type": "response.failed", "response": {
         "status": "failed", "error": {"code": "agent_error", "message": "Ollama loaded qwen3:14b with only 40,960 tokens"}}})
     assert ev == {"type": "error", "message": "Ollama loaded qwen3:14b with only 40,960 tokens"}
+
+
+def test_skills_fall_back_to_the_skills_folder(tmp_path):
+    d = tmp_path / "skills" / "web" / "summarize-page"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text("---\nname: summarize-page\ndescription: \"Summarises a web page\"\n---\nSteps…")
+
+    def broken(req):
+        return httpx.Response(500, text="TypeError: find_all_skills() got an unexpected keyword argument")
+    s = Settings(hermes_mode="hermes", hermes_api_key="k", hermes_home=tmp_path, _env_file=None)
+    agent = HermesAgent(s, transport=httpx.MockTransport(broken))
+    assert asyncio.run(agent.skills()) == [{"name": "summarize-page", "description": "Summarises a web page"}]
